@@ -7,3 +7,6 @@ node_modules/
 
 # Secrets & Scripts
 seed-admin.js
+
+# Documentation
+CHANGELOG.md

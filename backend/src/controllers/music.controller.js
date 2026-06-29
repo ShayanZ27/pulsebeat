@@ -3,6 +3,7 @@ const albumModel = require("../models/album.model");
 const userModel = require("../models/user.model");
 const storageService = require("../services/storage.service");
 const mm = require("music-metadata");
+const recentlyPlayedModel = require("../models/recently-played.model");
 
 async function createMusic(req, res) {
     try {
@@ -201,6 +202,34 @@ async function incrementPlayCount(req, res) {
                 await album.save();
             }
         }
+
+        // --- RECENTLY PLAYED DEQUE LOGIC ---
+        // 1. Delete existing record for this song to prevent duplicates (brings it to the top)
+        await recentlyPlayedModel.deleteMany({ 
+            userId: req.user.id, 
+            'history.contentId': music._id 
+        });
+
+        // 2. Add the new record to the top of the history
+        const newRecord = new recentlyPlayedModel({
+            userId: req.user.id,
+            history: {
+                contentId: music._id,
+                contentType: 'Music'
+            }
+        });
+        await newRecord.save();
+
+        // 3. Enforce max 10 records per user (Deque cleanup)
+        const userRecords = await recentlyPlayedModel.find({ userId: req.user.id })
+            .sort({ timestamp: -1 })
+            .select('_id');
+
+        if (userRecords.length > 10) {
+            const recordsToDelete = userRecords.slice(10).map(record => record._id);
+            await recentlyPlayedModel.deleteMany({ _id: { $in: recordsToDelete } });
+        }
+        // -----------------------------------
 
         res.status(200).json({
             success: true,

@@ -53,3 +53,7 @@ Thumbs.db
 
 # Project specific
 backend/seed-admin.js
+
+# Documentation
+backend/CHANGELOG.md
+API_DOCUMENTATION.md
