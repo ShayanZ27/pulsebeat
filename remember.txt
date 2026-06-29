@@ -1,0 +1,1 @@
+handle 'undefined' values gracefully - for frontend
