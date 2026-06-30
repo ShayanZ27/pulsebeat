@@ -63,4 +63,4 @@ PulseBeat includes a powerful, automated seeding environment located in `backend
    ```
 
 ---
-*Built with ❤️ by the PulseBeat Team.*
+*Built with ❤️ by Shayan*
