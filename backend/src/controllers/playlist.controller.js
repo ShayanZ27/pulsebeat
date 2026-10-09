@@ -1,6 +1,7 @@
 const playlistModel = require('../models/playlist.model');
 const musicModel = require('../models/music.model');
 const storageService = require('../services/storage.service');
+const activityModel = require('../models/activity.model');
 
 async function createPlaylist(req, res) {
     try {
@@ -56,6 +57,21 @@ async function addSong(req, res) {
         playlist.totalDuration += song.duration;
 
         await playlist.save();
+
+        // Log activity
+        try {
+            // Only log if the playlist is public, so private playlist additions don't leak to friends
+            if (playlist.isPublic) {
+                await activityModel.create({
+                    user: req.user.id,
+                    action: 'added_to_playlist',
+                    targetType: 'playlist',
+                    targetId: playlist._id
+                });
+            }
+        } catch (actErr) {
+            console.error("Activity log error:", actErr);
+        }
 
         res.status(200).json({ success: true, data: playlist });
     } catch (error) {
@@ -196,11 +212,35 @@ async function updatePlaylist(req, res) {
     }
 }
 
+async function getCommunityPlaylists(req, res) {
+    try {
+        let limit = parseInt(req.query.limit);
+        if (isNaN(limit) || limit <= 0 || limit > 50) {
+            limit = 20;
+        }
+
+        const playlists = await playlistModel.find({ isPublic: true })
+            .sort({ likesCount: -1, createdAt: -1 })
+            .limit(limit)
+            .populate('owner', 'username profilePicture');
+
+        res.status(200).json({
+            success: true,
+            message: "Community playlists fetched successfully",
+            data: playlists,
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
 module.exports = {
     createPlaylist,
     addSong,
     removeSong,
     getUserPlaylists,
     getPlaylistById,
-    updatePlaylist
+    updatePlaylist,
+    getCommunityPlaylists
 };

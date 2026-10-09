@@ -22,4 +22,9 @@ router.post('/report',
     userController.reportContent
 );
 
+router.get('/all',
+    authMiddleware.authenticateUser,
+    userController.getAllUsers
+);
+
 module.exports = router;

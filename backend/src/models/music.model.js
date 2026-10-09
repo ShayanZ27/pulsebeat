@@ -1,5 +1,15 @@
 const mongoose = require('mongoose')
 
+const GENRES = [
+  "Bollywood", "Pop", "Rock", "Hip-Hop", "Rap", 
+  "EDM", "Jazz", "Classical", "Indie", "Instrumental"
+];
+
+const MOODS = [
+  "Happy", "Sad", "Romantic", "Chill", "Party", 
+  "Energetic", "Focus", "Sleep", "Nostalgic", "Calm"
+];
+
 const musicSchema = new mongoose.Schema({
     uri: {
         type: String,
@@ -38,8 +48,13 @@ const musicSchema = new mongoose.Schema({
 
     genre: {
         type: String,
-        required: false,
-        default: "Unknown"
+        enum: GENRES,
+        required: true
+    },
+    mood: {
+        type: String,
+        enum: MOODS,
+        required: true
     },
 
     album: {

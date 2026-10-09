@@ -2,6 +2,7 @@ const likeModel = require('../models/like.model');
 const musicModel = require('../models/music.model');
 const albumModel = require('../models/album.model');
 const playlistModel = require('../models/playlist.model');
+const activityModel = require('../models/activity.model');
 
 async function addLike(req, res) {
     const { id } = req.params;
@@ -34,6 +35,18 @@ async function addLike(req, res) {
             targetId: id,
             targetType,
         });
+
+        // Log activity
+        try {
+            await activityModel.create({
+                user: req.user.id,
+                action: 'liked',
+                targetType,
+                targetId: id
+            });
+        } catch (actErr) {
+            console.error("Activity log error:", actErr);
+        }
 
         // 3. If creation succeeded, increment the actual count (the field is called 'likesCount', not 'likes')
         switch (targetType) {

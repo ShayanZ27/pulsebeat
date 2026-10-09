@@ -4,18 +4,40 @@ const userModel = require("../models/user.model");
 const storageService = require("../services/storage.service");
 const mm = require("music-metadata");
 const recentlyPlayedModel = require("../models/recently-played.model");
+const activityModel = require('../models/activity.model');
+
+const VALID_GENRES = [
+  "Bollywood", "Pop", "Rock", "Hip-Hop", "Rap", 
+  "EDM", "Jazz", "Classical", "Indie", "Instrumental"
+];
+
+const VALID_MOODS = [
+  "Happy", "Sad", "Romantic", "Chill", "Party", 
+  "Energetic", "Focus", "Sleep", "Nostalgic", "Calm"
+];
+
 
 async function createMusic(req, res) {
     try {
-        const { title, genre } = req.body;
+        const { title, genre, mood } = req.body;
+
 
         // Grab both files from req.files
         const file = req.files && req.files.file ? req.files.file[0] : null;
         const coverImageFile = req.files && req.files.coverImage ? req.files.coverImage[0] : null;
 
-        if (!title || !file || !coverImageFile) {
-            return res.status(400).json({ success: false, message: "Title, audio file, and cover image are required" });
+        if (!title || !file || !coverImageFile || !genre || !mood) {
+            return res.status(400).json({ success: false, message: "Title, audio file, cover image, genre, and mood are required" });
         }
+
+        if (!VALID_GENRES.includes(genre)) {
+            return res.status(400).json({ success: false, message: "Invalid genre provided" });
+        }
+        
+        if (!VALID_MOODS.includes(mood)) {
+            return res.status(400).json({ success: false, message: "Invalid mood provided" });
+        }
+
 
         // Calculate duration directly from the audio file buffer
         const metadata = await mm.parseBuffer(file.buffer, file.mimetype);
@@ -40,16 +62,27 @@ async function createMusic(req, res) {
             title: title,
             artist: req.user.id,
             coverImage: imageResult.url,
-            duration: calculatedDuration
+            duration: calculatedDuration,
+            genre: genre,
+            mood: mood
         };
-
-        if (genre) {
-            musicData.genre = genre;
-        }
 
         const music = new musicModel(musicData);
 
         await music.save();
+        
+        // Log activity
+        try {
+            await activityModel.create({
+                user: req.user.id,
+                action: 'uploaded_music',
+                targetType: 'music',
+                targetId: music._id
+            });
+        } catch (actErr) {
+            console.error("Activity log error:", actErr);
+        }
+
         res.status(201).json({ success: true, message: "Music created successfully", data: music });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -64,6 +97,8 @@ async function createAlbum(req, res) {
         if (!title || !description || !songs || !coverImageFile) {
             return res.status(400).json({ success: false, message: "Title, description, songs, and cover image are required" });
         }
+
+
 
         // Handle songs sent as JSON string or comma-separated string from form-data
         let parsedSongs = [];
@@ -128,6 +163,18 @@ async function createAlbum(req, res) {
             { $set: { album: album._id } }
         );
 
+        // Log activity
+        try {
+            await activityModel.create({
+                user: req.user.id,
+                action: 'uploaded_album',
+                targetType: 'album',
+                targetId: album._id
+            });
+        } catch (actErr) {
+            console.error("Activity log error:", actErr);
+        }
+
         res.status(201).json({ success: true, message: "Album created successfully", data: album });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -136,11 +183,23 @@ async function createAlbum(req, res) {
 
 async function getAllMusic(req, res) {
     try {
-        // Fetch active music, including older records that don't have the isActive field yet
-        const musics = await musicModel.find({ isActive: { $ne: false } }).populate('artist', 'username email');
+        const { mood, genre } = req.query;
+        
+        // Base query for active music
+        let query = { isActive: { $ne: false } };
+
+        // Add case-insensitive filters if provided
+        if (mood) query.mood = new RegExp(`^${mood}$`, 'i');
+        if (genre) query.genre = new RegExp(`^${genre}$`, 'i');
+
+        // Fetch music based on query, limit to 40
+        const musics = await musicModel.find(query)
+            .populate('artist', 'username email')
+            .limit(40);
+
         res.status(200).json({
             success: true,
-            message: "All active music fetched successfully",
+            message: "Music fetched successfully",
             data: musics,
         });
     } catch (error) {
@@ -394,6 +453,66 @@ async function getArtistAlbums(req, res) {
     }
 }
 
+async function getRecentlyPlayed(req, res) {
+    try {
+        const records = await recentlyPlayedModel.find({ userId: req.user.id })
+            .sort({ timestamp: -1 })
+            .populate({
+                path: 'history.contentId',
+                populate: {
+                    path: 'artist',
+                    select: 'username profilePicture'
+                }
+            });
+
+        res.status(200).json({
+            success: true,
+            message: "Recently played fetched successfully",
+            data: records,
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
+async function getLatestReleases(req, res) {
+    try {
+        let limit = parseInt(req.params.limit);
+        if (isNaN(limit) || limit <= 0 || limit > 50) {
+            limit = 10;
+        }
+
+        // Fetch latest music and albums in parallel
+        const [latestMusic, latestAlbums] = await Promise.all([
+            musicModel.find({ isActive: { $ne: false } })
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .populate('artist', 'username profilePicture'),
+            albumModel.find({ isActive: { $ne: false } })
+                .sort({ createdAt: -1 })
+                .limit(limit)
+                .populate('artist', 'username profilePicture'),
+        ]);
+
+        // Merge, tag with type, and sort by createdAt descending
+        const combined = [
+            ...latestMusic.map(m => ({ ...m.toObject(), releaseType: 'music' })),
+            ...latestAlbums.map(a => ({ ...a.toObject(), releaseType: 'album' })),
+        ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+         .slice(0, limit);
+
+        res.status(200).json({
+            success: true,
+            message: "Latest releases fetched successfully",
+            data: combined,
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
 module.exports = {
     createMusic,
     createAlbum,
@@ -405,5 +524,7 @@ module.exports = {
     getTrendingAlbums,
     getArtistMusic,
     getArtistAlbums,
-    getTrendingArtists
+    getTrendingArtists,
+    getRecentlyPlayed,
+    getLatestReleases
 };

@@ -177,8 +177,25 @@ async function reportContent(req, res) {
     }
 }
 
+async function getAllUsers(req, res) {
+    try {
+        const users = await userModel.find({ isSuspended: false })
+            .select('username profilePicture');
+        
+        res.status(200).json({
+            success: true,
+            message: "Users fetched successfully",
+            data: users,
+        });
+    } catch (error) {
+        console.error("Error in getAllUsers:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
 module.exports = {
     updateProfile,
     requestArtist,
-    reportContent
+    reportContent,
+    getAllUsers
 };

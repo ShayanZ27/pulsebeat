@@ -4,9 +4,13 @@ const bcrypt = require('bcryptjs');
 
 async function registerUser(req, res) {
     try {
-        const { username, email, password, role = 'user' } = req.body;
-        if (!username || !email || !password) {
-            return res.status(400).json({ message: "All fields are required" });
+        const { firstName, lastName, username, email, password, role = 'user' } = req.body;
+        if (!firstName || !username || !email || !password) {
+            return res.status(400).json({ message: "First name, username, email, and password are required" });
+        }
+
+        if (username.includes(' ')) {
+            return res.status(400).json({ message: "Username cannot contain spaces" });
         }
 
         if (role === 'admin') {
@@ -23,11 +27,14 @@ async function registerUser(req, res) {
         const hash = await bcrypt.hash(password, 10);
 
         const user = await userModel.create({
+            firstName,
+            lastName: lastName || '',
             username,
             email,
             password: hash,
             role,
         });
+
 
         const token = jwt.sign(
             {

@@ -26,6 +26,11 @@ router.get('/',
     playlistController.getUserPlaylists
 );
 
+router.get('/community',
+    authMiddleware.authenticateUser,
+    playlistController.getCommunityPlaylists
+);
+
 router.get('/:id',
     authMiddleware.authenticateUser,
     playlistController.getPlaylistById

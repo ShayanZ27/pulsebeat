@@ -81,4 +81,19 @@ router.get('/artist/:id/albums',
     musicController.getArtistAlbums
 );
 
+router.get('/recently-played',
+    authMiddleware.authenticateUser,
+    musicController.getRecentlyPlayed
+);
+
+router.get('/latest-releases',
+    authMiddleware.authenticateUser,
+    musicController.getLatestReleases
+);
+
+router.get('/latest-releases/:limit',
+    authMiddleware.authenticateUser,
+    musicController.getLatestReleases
+);
+
 module.exports = router;
