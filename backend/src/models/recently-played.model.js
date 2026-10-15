@@ -23,7 +23,16 @@ const recentlyPlayedSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     }
-})
+});
+
+recentlyPlayedSchema.index(
+  {
+    userId: 1,
+    "history.contentType": 1,
+    "history.contentId": 1
+  },
+  { unique: true }
+);
 
 const recentlyPlayedModel = mongoose.model("RecentlyPlayed", recentlyPlayedSchema);
 

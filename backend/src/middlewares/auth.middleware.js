@@ -14,7 +14,7 @@ function authenticateArtist(req, res, next) {
         req.user = decodedToken;
         next();
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(401).json({ success: false, error: error.message });
     }
 }
 
@@ -32,7 +32,7 @@ function authenticateUser(req, res, next) {
         req.user = decodedToken;
         next();
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(401).json({ success: false, error: error.message });
     }
 }
 
@@ -50,7 +50,7 @@ function authenticateAdmin(req, res, next) {
         req.user = decodedToken;
         next();
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(401).json({ success: false, error: error.message });
     }
 }
 

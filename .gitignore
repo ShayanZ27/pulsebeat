@@ -38,12 +38,9 @@ node_modules/
 
 # dotenv environment variable files
 .env
-.env.test
-.env.production
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+*.env
+*.env.*
 
 # Mac OS
 .DS_Store
@@ -53,7 +50,21 @@ Thumbs.db
 
 # Project specific
 backend/seed-admin.js
+backend/seeding/
+seeding/
+seed*
+backend/seed*
+test-mongoose.js
+
+# Backups & Archives
+frontend_backup*/
+spotify_conversation_archive.md
 
 # Documentation
 backend/CHANGELOG.md
 API_DOCUMENTATION.md
+
+# Frontend
+frontend/dist/
+frontend/dist-ssr/
+

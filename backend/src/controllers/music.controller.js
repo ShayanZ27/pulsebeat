@@ -194,7 +194,7 @@ async function getAllMusic(req, res) {
 
         // Fetch music based on query, limit to 40
         const musics = await musicModel.find(query)
-            .populate('artist', 'username email')
+            .populate('artist', 'username firstName lastName profilePicture')
             .limit(40);
 
         res.status(200).json({
@@ -226,7 +226,9 @@ async function getAllAlbums(req, res) {
 async function getAlbumById(req, res) {
     const id = req.params.id;
     try {
-        const album = await albumModel.findById(id).populate('artist', 'username email').populate('songs');
+        const album = await albumModel.findById(id)
+            .populate('artist', 'username firstName lastName profilePicture')
+            .populate({ path: 'songs', populate: { path: 'artist', select: 'username firstName lastName profilePicture' } });
         res.status(200).json({
             success: true,
             message: "Album fetched successfully",
@@ -263,21 +265,23 @@ async function incrementPlayCount(req, res) {
         }
 
         // --- RECENTLY PLAYED DEQUE LOGIC ---
-        // 1. Delete existing record for this song to prevent duplicates (brings it to the top)
-        await recentlyPlayedModel.deleteMany({ 
-            userId: req.user.id, 
-            'history.contentId': music._id 
-        });
-
-        // 2. Add the new record to the top of the history
-        const newRecord = new recentlyPlayedModel({
-            userId: req.user.id,
-            history: {
-                contentId: music._id,
-                contentType: 'Music'
-            }
-        });
-        await newRecord.save();
+        // 1. Atomically upsert record for this song with latest timestamp (guarantees uniqueness)
+        await recentlyPlayedModel.findOneAndUpdate(
+            { 
+                userId: req.user.id, 
+                'history.contentType': 'Music',
+                'history.contentId': music._id 
+            },
+            {
+                userId: req.user.id,
+                history: {
+                    contentId: music._id,
+                    contentType: 'Music'
+                },
+                timestamp: new Date()
+            },
+            { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+        );
 
         // 3. Enforce max 10 records per user (Deque cleanup)
         const userRecords = await recentlyPlayedModel.find({ userId: req.user.id })
@@ -308,7 +312,10 @@ async function getTrendingMusic(req, res) {
             limit = 20;
         }
 
-        const musics = await musicModel.find({ isActive: { $ne: false } }).sort({ plays: -1, likesCount: -1 }).limit(limit);
+        const musics = await musicModel.find({ isActive: { $ne: false } })
+            .sort({ plays: -1, likesCount: -1 })
+            .limit(limit)
+            .populate('artist', 'username firstName lastName profilePicture');
         res.status(200).json({
             success: true,
             message: "Trending music fetched successfully",
@@ -327,7 +334,15 @@ async function getTrendingAlbums(req, res) {
             limit = 20;
         }
 
-        const albums = await albumModel.find({ isActive: { $ne: false } }).sort({ plays: -1, likesCount: -1 }).limit(limit);
+        const albums = await albumModel.find({ isActive: { $ne: false } })
+            .sort({ plays: -1, likesCount: -1 })
+            .limit(limit)
+            .populate('artist', 'username firstName lastName profilePicture')
+            .populate({
+                path: 'songs',
+                match: { isActive: { $ne: false } },
+                populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
+            });
         res.status(200).json({
             success: true,
             message: "Trending albums fetched successfully",
@@ -389,6 +404,8 @@ async function getTrendingArtists(req, res) {
                     totalLikes: 1,
                     "artistDetails._id": 1,
                     "artistDetails.username": 1,
+                    "artistDetails.firstName": 1,
+                    "artistDetails.lastName": 1,
                     "artistDetails.profilePicture": 1,
                     "artistDetails.bio": 1
                 } 
@@ -461,14 +478,25 @@ async function getRecentlyPlayed(req, res) {
                 path: 'history.contentId',
                 populate: {
                     path: 'artist',
-                    select: 'username profilePicture'
+                    select: 'username firstName lastName profilePicture'
                 }
             });
+
+        // Deduplicate and filter out inactive/missing tracks
+        const seen = new Set();
+        const uniqueRecords = records.filter(r => {
+            const content = r.history?.contentId;
+            if (!content || !content._id) return false;
+            const idStr = content._id.toString();
+            if (seen.has(idStr)) return false;
+            seen.add(idStr);
+            return true;
+        });
 
         res.status(200).json({
             success: true,
             message: "Recently played fetched successfully",
-            data: records,
+            data: uniqueRecords,
         });
     } catch (error) {
         console.log(error);
@@ -488,11 +516,11 @@ async function getLatestReleases(req, res) {
             musicModel.find({ isActive: { $ne: false } })
                 .sort({ createdAt: -1 })
                 .limit(limit)
-                .populate('artist', 'username profilePicture'),
+                .populate('artist', 'username firstName lastName profilePicture'),
             albumModel.find({ isActive: { $ne: false } })
                 .sort({ createdAt: -1 })
                 .limit(limit)
-                .populate('artist', 'username profilePicture'),
+                .populate('artist', 'username firstName lastName profilePicture'),
         ]);
 
         // Merge, tag with type, and sort by createdAt descending

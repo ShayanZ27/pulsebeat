@@ -27,9 +27,13 @@ async function createPlaylist(req, res) {
 async function addSong(req, res) {
     try {
         const { id } = req.params;
-        const { songId } = req.body || {};
+        const { songId, songIds } = req.body || {};
 
-        if (!songId) {
+        const targetIds = Array.isArray(songIds) && songIds.length > 0
+            ? songIds
+            : (songId ? [songId] : []);
+
+        if (!targetIds.length) {
             return res.status(400).json({ success: false, message: "Song ID is required" });
         }
 
@@ -43,18 +47,21 @@ async function addSong(req, res) {
             return res.status(403).json({ success: false, message: "You are not the owner of this playlist" });
         }
 
-        const song = await musicModel.findById(songId);
-        if (!song) {
-            return res.status(404).json({ success: false, message: "Song not found" });
+        const existingSet = new Set((playlist.songs || []).map(s => (s._id || s).toString()));
+        const songsToAdd = await musicModel.find({ _id: { $in: targetIds } });
+        const newSongs = songsToAdd.filter(s => !existingSet.has(s._id.toString()));
+
+        if (newSongs.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: targetIds.length === 1 ? "Song already exists in playlist" : "All songs from this album already exist in this playlist"
+            });
         }
 
-        const songIsInPlaylist = await playlistModel.exists({ _id: id, songs: songId });
-        if (songIsInPlaylist) {
-            return res.status(400).json({ success: false, message: "Song already exists in playlist" });
+        for (const s of newSongs) {
+            playlist.songs.push(s._id);
+            playlist.totalDuration = (playlist.totalDuration || 0) + (s.duration || 0);
         }
-
-        playlist.songs.push(songId);
-        playlist.totalDuration += song.duration;
 
         await playlist.save();
 
@@ -122,7 +129,12 @@ async function removeSong(req, res) {
 async function getUserPlaylists(req, res) {
     try {
         const playlists = await playlistModel.find({ owner: req.user.id })
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .populate({
+                path: 'songs',
+                match: { isActive: { $ne: false } },
+                populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
+            });
 
         res.status(200).json({ success: true, data: playlists });
     } catch (error) {
@@ -222,7 +234,12 @@ async function getCommunityPlaylists(req, res) {
         const playlists = await playlistModel.find({ isPublic: true })
             .sort({ likesCount: -1, createdAt: -1 })
             .limit(limit)
-            .populate('owner', 'username profilePicture');
+            .populate('owner', 'username profilePicture')
+            .populate({
+                path: 'songs',
+                match: { isActive: { $ne: false } },
+                populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
+            });
 
         res.status(200).json({
             success: true,

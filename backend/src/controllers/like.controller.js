@@ -76,7 +76,7 @@ async function addLike(req, res) {
 
 async function removeLike(req, res) {
     const { id } = req.params;
-    const targetType = req.body?.targetType;
+    const targetType = req.body?.targetType || req.query?.targetType;
 
     // 1. Validate targetType
     if (!targetType || !['music', 'album', 'playlist'].includes(targetType)) {
