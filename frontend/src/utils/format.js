@@ -6,6 +6,8 @@ export function formatDuration(totalSeconds) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+export const formatTime = formatDuration;
+
 const RELATIVE_UNITS = [
   { limit: 60, divisor: 1, suffix: 's' },
   { limit: 3600, divisor: 60, suffix: 'm' },

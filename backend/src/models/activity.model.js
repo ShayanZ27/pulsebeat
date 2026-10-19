@@ -20,6 +20,17 @@ const activitySchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         required: true,
     },
+    // Optional context for 'added_to_playlist': the (first) song that was added
+    // and how many songs were added in that action.
+    relatedMusic: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Music',
+        default: null,
+    },
+    relatedCount: {
+        type: Number,
+        default: 1,
+    },
 }, { timestamps: true });
 
 // Index for efficient feed queries (newest first, per user)

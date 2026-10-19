@@ -43,6 +43,7 @@ import { useAddLikeMutation, useGetLikedMusicQuery, useRemoveLikeMutation } from
 import { showToast } from '../../utils/toast';
 import TrackActionMenu from '../common/TrackActionMenu';
 import AddToPlaylistModal from '../common/AddToPlaylistModal';
+import { PlayingHeartbeat } from '../common/PulseAnimations';
 
 /**
  * Isolated progress bar component.
@@ -169,6 +170,11 @@ export default function PlayerBar({ onToggleRightPanel }) {
           {currentTrack && (
             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <ChevronDown size={24} className="text-white" />
+            </div>
+          )}
+          {currentTrack && isPlaying && (
+            <div className="absolute bottom-1 right-1 p-1 rounded-full bg-black/65 backdrop-blur-md shadow-md border border-white/10 group-hover:opacity-0 transition-opacity flex items-center justify-center">
+              <PlayingHeartbeat size={13} color={accentColor} />
             </div>
           )}
         </div>

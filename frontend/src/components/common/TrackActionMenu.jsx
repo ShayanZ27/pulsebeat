@@ -11,20 +11,26 @@ import {
   MoreHorizontal,
   MoreVertical,
   Share2,
+  Trash2,
 } from 'lucide-react';
 import {
   useAddLikeMutation,
+  useGetAlbumByIdQuery,
   useGetLikedAlbumsQuery,
   useGetLikedMusicQuery,
+  useGetLikedPlaylistsQuery,
   useRemoveLikeMutation,
 } from '../../store/api';
 import { addToQueue, playNext } from '../../store/playerSlice';
 import { showToast } from '../../utils/toast';
+import AddToPlaylistModal from './AddToPlaylistModal';
 
 export default function TrackActionMenu({
   item,
   itemType = 'track',
   onOpenPlaylistModal,
+  onRemove,
+  removeLabel = 'Remove from playlist',
   triggerClassName = '',
   buttonSize = 32,
   iconSize = 16,
@@ -33,6 +39,7 @@ export default function TrackActionMenu({
 }) {
   const dispatch = useDispatch();
   const [isOpen, setIsOpen] = useState(false);
+  const [internalPlaylistOpen, setInternalPlaylistOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
   const triggerRef = useRef(null);
   const menuRef = useRef(null);
@@ -41,17 +48,28 @@ export default function TrackActionMenu({
   const [removeLike] = useRemoveLikeMutation();
 
   const isAlbum = itemType === 'album';
+  const isPlaylist = itemType === 'playlist';
   const itemId = item?._id || item?.id;
 
   const { data: likedMusic = [] } = useGetLikedMusicQuery(undefined, {
-    skip: isAlbum || !itemId,
+    skip: isAlbum || isPlaylist || !itemId,
   });
   const { data: likedAlbums = [] } = useGetLikedAlbumsQuery(undefined, {
     skip: !isAlbum || !itemId,
   });
+  const { data: likedPlaylists = [] } = useGetLikedPlaylistsQuery(undefined, {
+    skip: !isPlaylist || !itemId,
+  });
+
+  const { data: fullAlbum } = useGetAlbumByIdQuery(itemId, {
+    skip: !isAlbum || Boolean(item?.songs?.length),
+  });
+  const albumSongs = item?.songs?.length ? item.songs : (fullAlbum?.songs || []);
 
   const isLikedInDb = isAlbum
     ? likedAlbums.some((l) => String(l.targetId?._id || l.targetId?.id || l.targetId) === String(itemId))
+    : isPlaylist
+    ? likedPlaylists.some((l) => String(l.targetId?._id || l.targetId?.id || l.targetId) === String(itemId))
     : likedMusic.some((l) => String(l.targetId?._id || l.targetId?.id || l.targetId) === String(itemId));
 
   const isLiked = item?.isLiked !== undefined ? item.isLiked : isLikedInDb;
@@ -125,12 +143,23 @@ export default function TrackActionMenu({
     setIsOpen(false);
     if (!item) return;
 
-    if (isAlbum && item.songs?.length) {
-      dispatch(playNext(item.songs));
-      showToast(`Playing "${item.title}" album next`);
+    if (isAlbum) {
+      if (albumSongs.length) {
+        dispatch(playNext(albumSongs));
+        showToast(`Playing "${item.title || fullAlbum?.title || 'album'}" next`);
+      } else {
+        showToast('No songs found in album', 'info');
+      }
+    } else if (isPlaylist) {
+      if (item.songs?.length) {
+        dispatch(playNext(item.songs));
+        showToast(`Playing "${item.name || 'playlist'}" next`);
+      } else {
+        showToast('No songs found in playlist', 'info');
+      }
     } else {
       dispatch(playNext(item));
-      showToast(`Playing "${item.title || 'song'}" next`);
+      showToast(`Playing "${item.title || item.name || 'song'}" next`);
     }
   };
 
@@ -139,12 +168,23 @@ export default function TrackActionMenu({
     setIsOpen(false);
     if (!item) return;
 
-    if (isAlbum && item.songs?.length) {
-      dispatch(addToQueue(item.songs));
-      showToast(`Added ${item.songs.length} songs from "${item.title}" to queue`);
+    if (isAlbum) {
+      if (albumSongs.length) {
+        dispatch(addToQueue(albumSongs));
+        showToast(`Added ${albumSongs.length} songs to queue`);
+      } else {
+        showToast('No songs found in album', 'info');
+      }
+    } else if (isPlaylist) {
+      if (item.songs?.length) {
+        dispatch(addToQueue(item.songs));
+        showToast(`Added ${item.songs.length} songs to queue`);
+      } else {
+        showToast('No songs found in playlist', 'info');
+      }
     } else {
       dispatch(addToQueue(item));
-      showToast(`Added "${item.title || 'song'}" to queue`);
+      showToast(`Added "${item.title || item.name || 'song'}" to queue`);
     }
   };
 
@@ -153,6 +193,8 @@ export default function TrackActionMenu({
     setIsOpen(false);
     if (onOpenPlaylistModal) {
       onOpenPlaylistModal(item, itemType);
+    } else {
+      setInternalPlaylistOpen(true);
     }
   };
 
@@ -164,26 +206,27 @@ export default function TrackActionMenu({
       return;
     }
 
-    const title = item.title || item.name || (isAlbum ? 'Album' : 'Song');
+    const title = item.title || item.name || (isAlbum ? 'Album' : isPlaylist ? 'Playlist' : 'Song');
+    const targetType = isAlbum ? 'album' : isPlaylist ? 'playlist' : 'music';
 
     try {
       if (isLiked) {
         await removeLike({
           id: itemId,
-          targetType: isAlbum ? 'album' : 'music',
+          targetType,
         }).unwrap();
         showToast(
-          isAlbum
+          isAlbum || isPlaylist
             ? `Removed "${title}" from your library`
             : `Removed "${title}" from Liked Songs`
         );
       } else {
         await addLike({
           id: itemId,
-          targetType: isAlbum ? 'album' : 'music',
+          targetType,
         }).unwrap();
         showToast(
-          isAlbum
+          isAlbum || isPlaylist
             ? `Saved "${title}" to your library`
             : `Added "${title}" to Liked Songs`
         );
@@ -198,8 +241,9 @@ export default function TrackActionMenu({
     e.stopPropagation();
     setIsOpen(false);
     const targetId = item?._id || item?.id;
+    const targetPath = isAlbum ? 'album' : isPlaylist ? 'playlist' : 'track';
     const shareUrl = targetId
-      ? `${window.location.origin}/${isAlbum ? 'album' : 'track'}/${targetId}`
+      ? `${window.location.origin}/${targetPath}/${targetId}`
       : window.location.href;
 
     if (navigator?.clipboard) {
@@ -224,6 +268,10 @@ export default function TrackActionMenu({
       <button
         ref={triggerRef}
         type="button"
+        data-track-action-menu-trigger="true"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+        }}
         onClick={handleToggle}
         className={`w-8 h-8 rounded-full flex items-center justify-center text-txt-muted hover:text-txt hover:bg-elevated/80 transition-all cursor-pointer ${triggerClassName}`}
         style={{ width: buttonSize, height: buttonSize }}
@@ -241,6 +289,10 @@ export default function TrackActionMenu({
         createPortal(
           <div
             ref={menuRef}
+            data-track-action-menu="true"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
             onClick={(e) => e.stopPropagation()}
             style={{
               position: 'fixed',
@@ -248,7 +300,7 @@ export default function TrackActionMenu({
               left: `${coords.left}px`,
               zIndex: 9999,
             }}
-            className="w-60 py-2 rounded-2xl bg-sidebar/95 backdrop-blur-2xl border border-brd shadow-2xl animate-in fade-in zoom-in-95 duration-150 select-none text-left"
+            className="track-action-menu-portal w-60 py-2 rounded-2xl bg-sidebar/95 backdrop-blur-2xl border border-brd shadow-2xl animate-in fade-in zoom-in-95 duration-150 select-none text-left"
           >
             {/* Play Next */}
             <button
@@ -272,15 +324,17 @@ export default function TrackActionMenu({
 
             <div className="my-1.5 border-t border-brd/60" />
 
-            {/* Add to Playlist */}
-            <button
-              type="button"
-              onClick={handleOpenPlaylist}
-              className="w-full px-4 py-2.5 text-xs font-semibold text-txt hover:bg-elevated/80 hover:text-primary transition-colors flex items-center gap-3 cursor-pointer text-left whitespace-nowrap"
-            >
-              <FolderPlus size={15} className="shrink-0 text-txt-muted" />
-              <span className="text-left whitespace-nowrap flex-1">Add to Playlist</span>
-            </button>
+            {/* Add to Playlist (for tracks and albums) */}
+            {!isPlaylist && (
+              <button
+                type="button"
+                onClick={handleOpenPlaylist}
+                className="w-full px-4 py-2.5 text-xs font-semibold text-txt hover:bg-elevated/80 hover:text-primary transition-colors flex items-center gap-3 cursor-pointer text-left whitespace-nowrap"
+              >
+                <FolderPlus size={15} className="shrink-0 text-txt-muted" />
+                <span className="text-left whitespace-nowrap flex-1">Add to Playlist</span>
+              </button>
+            )}
 
             {/* Like / Unlike */}
             <button
@@ -299,16 +353,33 @@ export default function TrackActionMenu({
               )}
               <span className="text-left whitespace-nowrap flex-1">
                 {isLiked
-                  ? isAlbum
+                  ? isAlbum || isPlaylist
                     ? 'Remove from Your Library'
                     : 'Remove from Liked Songs'
                   : isAlbum
                   ? 'Save Album to Library'
+                  : isPlaylist
+                  ? 'Save Playlist to Library'
                   : 'Save to Liked Songs'}
               </span>
             </button>
 
             <div className="my-1.5 border-t border-brd/60" />
+
+            {onRemove && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsOpen(false);
+                  onRemove();
+                }}
+                className="w-full px-4 py-2.5 text-xs font-semibold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors flex items-center gap-3 cursor-pointer text-left whitespace-nowrap"
+              >
+                <Trash2 size={15} className="shrink-0 text-red-400" />
+                <span className="text-left whitespace-nowrap flex-1">{removeLabel}</span>
+              </button>
+            )}
 
             {/* Copy Link / Share */}
             <button
@@ -332,6 +403,15 @@ export default function TrackActionMenu({
           </div>,
           document.body
         )}
+
+      {!onOpenPlaylistModal && (
+        <AddToPlaylistModal
+          isOpen={internalPlaylistOpen}
+          onClose={() => setInternalPlaylistOpen(false)}
+          item={item}
+          itemType={itemType}
+        />
+      )}
     </>
   );
 }

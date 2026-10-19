@@ -42,4 +42,9 @@ router.patch('/:id',
     playlistController.updatePlaylist
 );
 
+router.delete('/:id',
+    authMiddleware.authenticateUser,
+    playlistController.deletePlaylist
+);
+
 module.exports = router;

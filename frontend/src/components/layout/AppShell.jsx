@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import { Outlet } from 'react-router-dom';
+import { Outlet, NavLink } from 'react-router-dom';
 import { Home, Search, Library } from 'lucide-react';
 import { selectAccentColor } from '../../store/themeSlice';
 import Sidebar from './Sidebar';
@@ -8,6 +8,7 @@ import TopNav from './TopNav';
 import RightPanel from './RightPanel';
 import PlayerBar from '../player/PlayerBar';
 import ToastContainer from '../common/ToastContainer';
+import ErrorBoundary from '../common/ErrorBoundary';
 
 export default function AppShell() {
   const accentColor = useSelector(selectAccentColor);
@@ -42,7 +43,9 @@ export default function AppShell() {
 
           {/* Scrollable Content Container */}
           <div className="flex-1 overflow-y-auto px-6 md:px-10 pb-8 scrollbar-hide z-10">
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
 
@@ -60,28 +63,46 @@ export default function AppShell() {
 
       {/* ══════ MOBILE BOTTOM NAV ══════ */}
       <div className="md:hidden flex items-center justify-around bg-sidebar border-t border-brd py-3 z-30 shrink-0 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
-        <button
-          className="flex flex-col items-center gap-1"
-          style={{ color: accentColor }}
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) =>
+            `flex flex-col items-center gap-1 transition-colors ${
+              isActive ? 'font-bold' : 'text-txt-muted hover:text-primary'
+            }`
+          }
+          style={({ isActive }) => (isActive ? { color: accentColor } : undefined)}
           aria-label="Home"
         >
-          <Home size={24} />
-          <span className="text-[10px] font-bold">Home</span>
-        </button>
-        <button
-          className="flex flex-col items-center gap-1 text-txt-muted hover:text-primary transition-colors"
+          <Home size={22} />
+          <span className="text-[10px]">Home</span>
+        </NavLink>
+        <NavLink
+          to="/discover/genres"
+          className={({ isActive }) =>
+            `flex flex-col items-center gap-1 transition-colors ${
+              isActive ? 'font-bold' : 'text-txt-muted hover:text-primary'
+            }`
+          }
+          style={({ isActive }) => (isActive ? { color: accentColor } : undefined)}
           aria-label="Search"
         >
-          <Search size={24} />
-          <span className="text-[10px] font-bold">Search</span>
-        </button>
-        <button
-          className="flex flex-col items-center gap-1 text-txt-muted hover:text-primary transition-colors"
+          <Search size={22} />
+          <span className="text-[10px]">Search</span>
+        </NavLink>
+        <NavLink
+          to="/library"
+          className={({ isActive }) =>
+            `flex flex-col items-center gap-1 transition-colors ${
+              isActive ? 'font-bold' : 'text-txt-muted hover:text-primary'
+            }`
+          }
+          style={({ isActive }) => (isActive ? { color: accentColor } : undefined)}
           aria-label="Library"
         >
-          <Library size={24} />
-          <span className="text-[10px] font-bold">Library</span>
-        </button>
+          <Library size={22} />
+          <span className="text-[10px]">Library</span>
+        </NavLink>
       </div>
 
       {/* ══════ TOAST NOTIFICATIONS ══════ */}

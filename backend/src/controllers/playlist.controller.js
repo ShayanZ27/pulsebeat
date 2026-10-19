@@ -73,7 +73,9 @@ async function addSong(req, res) {
                     user: req.user.id,
                     action: 'added_to_playlist',
                     targetType: 'playlist',
-                    targetId: playlist._id
+                    targetId: playlist._id,
+                    relatedMusic: newSongs[0]._id,
+                    relatedCount: newSongs.length
                 });
             }
         } catch (actErr) {
@@ -148,13 +150,13 @@ async function getPlaylistById(req, res) {
         
         // Populate the owner details, and deeply populate the songs and their associated artists
         const playlist = await playlistModel.findById(id)
-            .populate('owner', 'username profilePicture')
+            .populate('owner', 'username firstName lastName profilePicture')
             .populate({
                 path: 'songs',
-                match: { isActive: true }, // Ensure hidden songs are not visible
+                match: { isActive: { $ne: false } },
                 populate: {
                     path: 'artist',
-                    select: 'username profilePicture'
+                    select: 'username firstName lastName profilePicture'
                 }
             });
 
@@ -252,6 +254,35 @@ async function getCommunityPlaylists(req, res) {
     }
 }
 
+async function deletePlaylist(req, res) {
+    try {
+        const { id } = req.params;
+        const playlist = await playlistModel.findById(id);
+
+        if (!playlist) {
+            return res.status(404).json({ success: false, message: "Playlist not found" });
+        }
+
+        if (playlist.owner.toString() !== req.user.id) {
+            return res.status(403).json({ success: false, message: "You are not the owner of this playlist" });
+        }
+
+        if (playlist.coverImage && playlist.coverImage.includes('imagekit')) {
+            try {
+                await storageService.deleteImageByURL(playlist.coverImage);
+            } catch (imgErr) {
+                console.error("Failed to delete cover image from storage:", imgErr);
+            }
+        }
+
+        await playlistModel.findByIdAndDelete(id);
+
+        res.status(200).json({ success: true, message: "Playlist deleted successfully", data: { id } });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
 module.exports = {
     createPlaylist,
     addSong,
@@ -259,5 +290,6 @@ module.exports = {
     getUserPlaylists,
     getPlaylistById,
     updatePlaylist,
-    getCommunityPlaylists
+    getCommunityPlaylists,
+    deletePlaylist
 };

@@ -95,6 +95,40 @@
   50% { filter: drop-shadow(0 0 12px var(--accent-color)); }
 }
 
+/* PulseBeat signature heartbeat (EKG trace sweeping across the logo path) */
+@keyframes pbTrace {
+  0% { stroke-dashoffset: 100; }
+  100% { stroke-dashoffset: -100; }
+}
+@keyframes pbBeat {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  14% { transform: scale(1.7); opacity: 1; }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.4); opacity: 1; }
+  70% { transform: scale(1); }
+}
+@keyframes pbHalo {
+  0% { transform: scale(0.85); opacity: 0.55; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+.pb-heartbeat-trace {
+  stroke-dasharray: 55 45;
+  animation: pbTrace 1.15s linear infinite;
+  transition: none;
+}
+.pb-heartbeat-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pbBeat 1.15s ease-in-out infinite;
+  transition: none;
+}
+.pb-heartbeat-halo {
+  animation: pbHalo 1.15s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pb-heartbeat-trace, .pb-heartbeat-dot, .pb-heartbeat-halo { animation: none; stroke-dasharray: none; }
+}
+
 /* Smooth transitions for theme changes */
 *, *::before, *::after {
   transition-property: background-color, border-color, color, fill, stroke, box-shadow;

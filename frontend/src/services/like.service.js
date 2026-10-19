@@ -1,12 +1,18 @@
 import api, { unwrap } from './api';
 
 export const likeService = {
-  addLike: ({ id, targetType = 'music' }) =>
-    api.post(`/like/${id}`, { targetType }).then(unwrap),
-  removeLike: ({ id, targetType = 'music' }) =>
-    api.delete(`/like/${id}`, { data: { targetType }, params: { targetType } }).then(unwrap),
+  addLike: ({ id, targetId, targetType = 'music' }) => {
+    const realId = id || targetId;
+    return api.post(`/like/${realId}`, { targetType }).then(unwrap);
+  },
+  removeLike: ({ id, targetId, targetType = 'music' }) => {
+    const realId = id || targetId;
+    return api.delete(`/like/${realId}`, { data: { targetType }, params: { targetType } }).then(unwrap);
+  },
   getLikedMusic: () =>
     api.get('/like/liked-music').then(unwrap),
   getLikedAlbums: () =>
     api.get('/like/liked-album').then(unwrap),
+  getLikedPlaylists: () =>
+    api.get('/like/liked-playlists').then(unwrap),
 };

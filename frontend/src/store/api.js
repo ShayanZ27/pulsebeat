@@ -6,6 +6,7 @@ import { authService } from '../services/auth.service';
 import { likeService } from '../services/like.service';
 import { musicService } from '../services/music.service';
 import { playlistService } from '../services/playlist.service';
+import { searchService } from '../services/search.service';
 
 /** Dispatched when an authenticated request comes back 401 (stale/expired cookie). */
 export const sessionExpired = createAction('auth/sessionExpired');
@@ -34,7 +35,7 @@ const noSessionHandling = { signOutOn401: false };
 export const pulsebeatApi = createApi({
   reducerPath: 'api',
   baseQuery: fakeBaseQuery(),
-  tagTypes: ['RecentlyPlayed', 'UserPlaylists', 'LikedMusic'],
+  tagTypes: ['RecentlyPlayed', 'UserPlaylists', 'LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'Playlist', 'Album', 'ActivityFeed'],
   endpoints: (build) => ({
     /* ── Auth ── */
     login: build.mutation({ queryFn: fromService(authService.login, noSessionHandling) }),
@@ -55,16 +56,44 @@ export const pulsebeatApi = createApi({
       queryFn: fromService(playlistService.getUserPlaylists),
       providesTags: ['UserPlaylists'],
     }),
+    getPlaylistById: build.query({
+      queryFn: fromService(playlistService.getById),
+      providesTags: (result, error, id) => [{ type: 'Playlist', id }],
+    }),
     createPlaylist: build.mutation({
       queryFn: fromService(playlistService.create),
       invalidatesTags: ['UserPlaylists'],
     }),
     addToPlaylist: build.mutation({
       queryFn: fromService(playlistService.addSong),
-      invalidatesTags: ['UserPlaylists'],
+      invalidatesTags: (result, error, { playlistId }) => [{ type: 'Playlist', id: playlistId }, 'UserPlaylists', 'ActivityFeed'],
+    }),
+    removeSongFromPlaylist: build.mutation({
+      queryFn: fromService(playlistService.removeSong),
+      invalidatesTags: (result, error, { playlistId }) => [{ type: 'Playlist', id: playlistId }, 'UserPlaylists', 'ActivityFeed'],
+    }),
+    deletePlaylist: build.mutation({
+      queryFn: fromService(playlistService.delete),
+      invalidatesTags: (result, error, id) => [{ type: 'Playlist', id }, 'UserPlaylists', 'ActivityFeed'],
+    }),
+    updatePlaylist: build.mutation({
+      queryFn: fromService(playlistService.update),
+      invalidatesTags: (result, error, { id }) => [{ type: 'Playlist', id }, 'UserPlaylists'],
     }),
     getCommunityPlaylists: build.query({ queryFn: fromService(playlistService.getCommunity) }),
-    getActivityFeed: build.query({ queryFn: fromService(activityService.getFeed) }),
+    getActivityFeed: build.query({
+      queryFn: fromService(activityService.getFeed),
+      providesTags: ['ActivityFeed'],
+    }),
+
+    /* ── Catalog, Albums, Artists ── */
+    getAlbumById: build.query({
+      queryFn: fromService(musicService.getAlbum),
+      providesTags: (result, error, id) => [{ type: 'Album', id }],
+    }),
+    getArtistMusic: build.query({ queryFn: fromService(musicService.getArtistMusic) }),
+    getArtistAlbums: build.query({ queryFn: fromService(musicService.getArtistAlbums) }),
+    getAllMusic: build.query({ queryFn: fromService(musicService.getAll) }),
 
     /* ── Likes ── */
     getLikedMusic: build.query({
@@ -75,13 +104,22 @@ export const pulsebeatApi = createApi({
       queryFn: fromService(likeService.getLikedAlbums),
       providesTags: ['LikedAlbums'],
     }),
+    getLikedPlaylists: build.query({
+      queryFn: fromService(likeService.getLikedPlaylists),
+      providesTags: ['LikedPlaylists'],
+    }),
     addLike: build.mutation({
       queryFn: fromService(likeService.addLike),
-      invalidatesTags: ['LikedMusic', 'LikedAlbums'],
+      invalidatesTags: ['LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'ActivityFeed'],
     }),
     removeLike: build.mutation({
       queryFn: fromService(likeService.removeLike),
-      invalidatesTags: ['LikedMusic', 'LikedAlbums'],
+      invalidatesTags: ['LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'ActivityFeed'],
+    }),
+
+    /* ── Search ── */
+    search: build.query({
+      queryFn: fromService(({ query, type = 'all' }) => searchService.search(query, type)),
     }),
 
     /* ── Playback ── */
@@ -102,13 +140,23 @@ export const {
   useGetTrendingArtistsQuery,
   useGetRecentlyPlayedQuery,
   useGetUserPlaylistsQuery,
+  useGetPlaylistByIdQuery,
   useCreatePlaylistMutation,
   useAddToPlaylistMutation,
+  useRemoveSongFromPlaylistMutation,
+  useDeletePlaylistMutation,
+  useUpdatePlaylistMutation,
   useGetCommunityPlaylistsQuery,
   useGetActivityFeedQuery,
+  useGetAlbumByIdQuery,
+  useGetArtistMusicQuery,
+  useGetArtistAlbumsQuery,
+  useGetAllMusicQuery,
   useGetLikedMusicQuery,
   useGetLikedAlbumsQuery,
+  useGetLikedPlaylistsQuery,
   useAddLikeMutation,
   useRemoveLikeMutation,
   useRecordPlayMutation,
+  useSearchQuery,
 } = pulsebeatApi;

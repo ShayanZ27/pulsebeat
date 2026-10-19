@@ -39,9 +39,14 @@ async function createMusic(req, res) {
         }
 
 
-        // Calculate duration directly from the audio file buffer
-        const metadata = await mm.parseBuffer(file.buffer, file.mimetype);
-        const calculatedDuration = Math.round(metadata.format.duration || 0);
+        // Calculate duration directly from the audio file buffer.
+        // Allow auto-detection of audio container/codec from magic bytes first,
+        // with duration: true enabled so VBR/EOF streams calculate accurately.
+        let metadata = await mm.parseBuffer(file.buffer, undefined, { duration: true }).catch(() => null);
+        if (!metadata || !metadata.format || !metadata.format.duration) {
+            metadata = await mm.parseBuffer(file.buffer, file.mimetype, { duration: true }).catch(() => null);
+        }
+        const calculatedDuration = Math.round(metadata?.format?.duration || 0);
 
         // Upload Audio
         const storageResult = await storageService.uploadFile(file.buffer);
@@ -436,7 +441,7 @@ async function getArtistMusic(req, res) {
         // 2. Removed .select('title artist') because the frontend needs uri, coverImage, etc., to play the song!
         // 3. Populate specifically selected safe fields to avoid sending the artist's password/email to the frontend
         const musics = await musicModel.find({ artist: artistId, isActive: { $ne: false } })
-            .populate('artist', 'username profilePicture');
+            .populate('artist', 'username firstName lastName profilePicture');
         res.status(200).json({
             success: true,
             message: "Artist music fetched successfully",
@@ -458,7 +463,7 @@ async function getArtistAlbums(req, res) {
         }
         // Same fixes here: check isActive, remove overly strict select, and secure populate
         const albums = await albumModel.find({ artist: artistId, isActive: { $ne: false } })
-            .populate('artist', 'username profilePicture');
+            .populate('artist', 'username firstName lastName profilePicture');
         res.status(200).json({
             success: true,
             message: "Artist albums fetched successfully",
@@ -520,7 +525,12 @@ async function getLatestReleases(req, res) {
             albumModel.find({ isActive: { $ne: false } })
                 .sort({ createdAt: -1 })
                 .limit(limit)
-                .populate('artist', 'username firstName lastName profilePicture'),
+                .populate('artist', 'username firstName lastName profilePicture')
+                .populate({
+                    path: 'songs',
+                    match: { isActive: { $ne: false } },
+                    populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
+                }),
         ]);
 
         // Merge, tag with type, and sort by createdAt descending

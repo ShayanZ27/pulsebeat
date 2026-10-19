@@ -1,26 +1,48 @@
 import { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { Navigate, useLocation } from 'react-router-dom';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { HeadphonesLineSVG, LogoPulseSVG, VinylDiscLineSVG } from '../components/icons/LineArt';
 import { useLoginMutation, useRegisterMutation } from '../store/api';
 import { selectCurrentUser } from '../store/authSlice';
 import { selectAccentColor, selectAccentTextColor } from '../store/themeSlice';
+import { HeartbeatLoader } from '../components/common/PulseAnimations';
 
 const EMPTY_FORM = { identifier: '', firstName: '', lastName: '', username: '', email: '', password: '' };
 
-function Field({ id, label, optional, ...inputProps }) {
+function Field({ id, label, optional, type = 'text', ...inputProps }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPasswordField = type === 'password';
+  const effectiveType = isPasswordField ? (showPassword ? 'text' : 'password') : type;
+
   return (
-    <label htmlFor={id} className="block">
-      <span className="block mb-2 text-xs font-space font-bold uppercase tracking-widest text-txt-sec">
+    <div className="block">
+      <label htmlFor={id} className="block mb-2 text-xs font-space font-bold uppercase tracking-widest text-txt-sec">
         {label} {optional && <span className="normal-case tracking-normal font-inter font-medium text-txt-muted">(optional)</span>}
-      </span>
-      <input
-        id={id}
-        className="w-full bg-elevated border-2 border-brd text-txt text-sm rounded-xl py-3 px-4 outline-none placeholder:text-txt-muted focus:border-primary"
-        {...inputProps}
-      />
-    </label>
+      </label>
+      <div className="relative">
+        <input
+          id={id}
+          type={effectiveType}
+          className={`w-full bg-elevated border-2 border-brd text-txt text-sm rounded-xl py-3 px-4 outline-none placeholder:text-txt-muted focus:border-primary transition-colors ${
+            isPasswordField ? 'pr-11' : ''
+          }`}
+          {...inputProps}
+        />
+        {isPasswordField && (
+          <button
+            type="button"
+            id={`${id}-toggle-visibility`}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            title={showPassword ? 'Hide password' : 'Show password'}
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-txt-muted hover:text-txt hover:bg-card/60 rounded-lg transition-colors cursor-pointer"
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -48,6 +70,7 @@ export default function AuthPage() {
   const switchMode = (nextMode) => {
     setMode(nextMode);
     setError('');
+    setForm((prev) => ({ ...prev, password: '' }));
   };
 
   const handleSubmit = async (event) => {
@@ -127,6 +150,7 @@ export default function AuthPage() {
           )}
 
           <Field
+            key={`auth-password-${mode}`}
             id="auth-password" name="password" type="password" label="Password"
             autoComplete={isLogin ? 'current-password' : 'new-password'}
             value={form.password} onChange={update} required
@@ -145,7 +169,13 @@ export default function AuthPage() {
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold shadow-sm hover:brightness-95 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             style={{ backgroundColor: accentColor, color: accentTextColor }}
           >
-            {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <>{isLogin ? 'Log in' : 'Create account'} <ArrowRight size={18} /></>}
+            {isSubmitting ? (
+              <HeartbeatLoader size={18} color={accentTextColor} />
+            ) : (
+              <>
+                {isLogin ? 'Log in' : 'Create account'} <ArrowRight size={18} />
+              </>
+            )}
           </button>
         </form>
       </section>

@@ -7,6 +7,8 @@ export const musicService = {
   getTrendingAlbums: (limit = 10) => api.get(`/music/trending-albums/${limit}`).then(unwrap),
   getTrendingArtists: (limit = 10) => api.get(`/music/trending-artists/${limit}`).then(unwrap),
   getAlbum: (id) => api.get(`/music/albums/${id}`).then(unwrap),
+  getArtistMusic: (id) => api.get(`/music/artist/${id}/music`).then(unwrap),
+  getArtistAlbums: (id) => api.get(`/music/artist/${id}/albums`).then(unwrap),
 
   /** Returns Music documents, unwrapped from the RecentlyPlayed records. */
   getRecentlyPlayed: () =>

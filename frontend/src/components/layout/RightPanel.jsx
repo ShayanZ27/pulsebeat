@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   GripVertical,
@@ -22,19 +22,17 @@ import {
   reorderQueue,
   selectCurrentIndex,
   selectQueue,
+  selectIsPlaying,
 } from '../../store/playerSlice';
 import { selectAccentColor, selectAccentTextColor } from '../../store/themeSlice';
 import { formatDuration, formatRelativeTime, getDisplayName } from '../../utils/format';
 import { showToast } from '../../utils/toast';
 import TrackActionMenu from '../common/TrackActionMenu';
 import AddToPlaylistModal from '../common/AddToPlaylistModal';
-
-const fallbackActivityFeed = [
-  { user: "Aria", action: "liked", detail: "Heat Waves by Glass Animals", time: "2m ago", type: "like", avatar: "aria" },
-  { user: "Dev", action: "added", detail: "Chill Vibes to their playlist", time: "10m ago", type: "playlist", avatar: "dev" },
-  { user: "Maya", action: "listened to", detail: "After Hours by The Weeknd", time: "25m ago", type: "listen", avatar: "maya" },
-  { user: "Zain", action: "liked", detail: "Starboy by The Weeknd", time: "1h ago", type: "like", avatar: "zain" },
-];
+import ActivityItem from '../common/ActivityItem';
+import ActivityFeedModal from '../common/ActivityFeedModal';
+import { PlayingOverlay } from '../common/PulseAnimations';
+import { describeActivity } from '../../utils/activity';
 
 export default function RightPanel({
   isLargeDesktop = false,
@@ -48,6 +46,7 @@ export default function RightPanel({
 
   const queue = useSelector(selectQueue);
   const currentIndex = useSelector(selectCurrentIndex);
+  const isPlaying = useSelector(selectIsPlaying);
 
   const { data: recentHistory = [] } = useGetRecentlyPlayedQuery();
   const { data: activityData = [] } = useGetActivityFeedQuery();
@@ -57,6 +56,7 @@ export default function RightPanel({
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [dragOverPosition, setDragOverPosition] = useState(null);
   const [playlistModalItem, setPlaylistModalItem] = useState(null);
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [isDraggingOutside, setIsDraggingOutside] = useState(false);
 
   const queueContainerRef = useRef(null);
@@ -69,7 +69,14 @@ export default function RightPanel({
 
   // Active items for current tab
   const displayItems = activeQueueTab === 'queue' ? queue : recentHistory;
-  const activities = activityData.length > 0 ? activityData : fallbackActivityFeed;
+  
+  // Described activities for feed
+  const describedActivities = useMemo(
+    () => (Array.isArray(activityData) ? activityData.map(describeActivity).filter(Boolean) : []),
+    [activityData]
+  );
+  // Show only 4 items in compact panel
+  const compactActivities = describedActivities.slice(0, 4);
 
   const handleTrackClick = (track, index) => {
     if (activeQueueTab === 'queue') {
@@ -363,19 +370,23 @@ export default function RightPanel({
                     />
                   )}
 
-                  <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 shadow-sm">
+                  <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 shadow-sm bg-elevated">
                     <img
                       src={songCover}
                       className="w-full h-full object-cover pointer-events-none"
                       alt={songTitle}
                     />
                     {isCurrent && (
-                      <div
-                        className="absolute inset-0 bg-black/40 flex items-center justify-center"
-                        style={{ color: accentColor }}
-                      >
-                        <Play size={16} fill="currentColor" />
-                      </div>
+                      isPlaying ? (
+                        <PlayingOverlay size={20} rounded="rounded-xl" color={accentColor} />
+                      ) : (
+                        <div
+                          className="absolute inset-0 bg-black/40 flex items-center justify-center"
+                          style={{ color: accentColor }}
+                        >
+                          <Play size={16} fill="currentColor" />
+                        </div>
+                      )
                     )}
                   </div>
 
@@ -459,61 +470,50 @@ export default function RightPanel({
 
         {/* Friend Activity Feed */}
         <div className="border-t border-brd bg-bg">
-          <div className="flex items-center justify-between px-8 pt-8 pb-4">
-            <h3 className="text-lg font-space font-bold text-txt">Friend Activity</h3>
-            <span
-              className="text-[11px] font-bold cursor-pointer hover:underline"
-              style={{ color: accentColor }}
-            >
-              View all
-            </span>
+          <div className="flex items-center justify-between px-8 pt-6 pb-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-space font-bold text-txt">Friend Activity</h3>
+              {describedActivities.length > 0 && (
+                <span className="text-[10px] font-space font-bold px-2 py-0.5 rounded-full bg-elevated border border-brd text-txt-muted">
+                  {describedActivities.length}
+                </span>
+              )}
+            </div>
+            {describedActivities.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsActivityModalOpen(true)}
+                className="text-[11px] font-space font-bold cursor-pointer hover:underline transition-all"
+                style={{ color: accentColor }}
+              >
+                View all
+              </button>
+            )}
           </div>
-          <div className="px-8 pb-8 space-y-6 overflow-y-auto max-h-75 scrollbar-hide">
-            {activities.map((item, i) => {
-              const userName = item.user?.username || item.user || 'Friend';
-              const userAvatar = item.user?.profilePicture || (item.avatar ? `https://picsum.photos/seed/${item.avatar}/80/80` : `https://picsum.photos/seed/user${i}/80/80`);
-              const actionText = item.action || 'listened to';
-              const detailText = item.detail || item.music?.title || 'a track';
-              const timeText = item.createdAt ? formatRelativeTime(item.createdAt) : (item.time || '5m ago');
-
-              return (
-                <div key={item._id || i} className="flex items-start gap-4 group cursor-pointer">
-                  <img
-                    src={userAvatar}
-                    className="w-11 h-11 rounded-full object-cover shrink-0 shadow-sm border-2 border-transparent group-hover:border-primary transition-colors"
-                    style={{ borderColor: accentColor }}
-                    alt={userName}
-                  />
-                  <div className="flex-1 min-w-0 pt-0.5">
-                    <p className="text-[13px] leading-tight mb-1 truncate">
-                      <span className="font-bold text-txt">{userName}</span>{' '}
-                      <span className="font-medium text-txt-sec">{actionText}</span>
-                    </p>
-                    <p className="text-[11px] font-medium text-txt-muted truncate group-hover:text-txt transition-colors">
-                      {detailText}
-                    </p>
-                    <p className="text-[9px] font-space font-bold text-txt-muted/60 mt-1 uppercase tracking-widest">
-                      {timeText}
-                    </p>
-                  </div>
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-1 text-txt-muted group-hover:text-primary transition-colors"
-                    style={{ color: accentColor }}
-                  >
-                    {item.type === 'like' ? (
-                      <Heart size={14} />
-                    ) : item.type === 'playlist' ? (
-                      <ListMusic size={14} />
-                    ) : (
-                      <Play size={14} className="ml-0.5" />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="px-8 pb-6 space-y-2 overflow-y-auto max-h-[340px] scrollbar-hide">
+            {compactActivities.length === 0 ? (
+              <div className="py-8 text-center text-txt-muted">
+                <p className="text-xs font-medium">No recent activity</p>
+                <p className="text-[10px] text-txt-muted/70 mt-1">Likes, releases, and playlist updates will show up here.</p>
+              </div>
+            ) : (
+              compactActivities.map((info) => (
+                <ActivityItem
+                  key={info.id}
+                  info={info}
+                  variant="compact"
+                />
+              ))
+            )}
           </div>
         </div>
       </aside>
+
+      {/* ── Activity Feed Modal ── */}
+      <ActivityFeedModal
+        isOpen={isActivityModalOpen}
+        onClose={() => setIsActivityModalOpen(false)}
+      />
 
       {/* ── Add to Playlist Modal ── */}
       <AddToPlaylistModal

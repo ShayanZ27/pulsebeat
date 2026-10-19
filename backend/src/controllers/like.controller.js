@@ -120,10 +120,17 @@ async function removeLike(req, res) {
 
 async function getLikedMusic(req, res) {
     try {
-        const likes = await likeModel.find({ user: req.user.id, targetType: 'music' })
-            .populate('targetId');
+        const likes = await likeModel.find({ user: req.user.id, targetType: 'music' }).lean();
+        const musicIds = likes.map(l => l.targetId);
+        const musics = await musicModel.find({ _id: { $in: musicIds }, isActive: { $ne: false } })
+            .populate('artist', 'username firstName lastName profilePicture')
+            .lean();
+        const musicMap = new Map(musics.map(m => [String(m._id), m]));
+        const data = likes
+            .map(l => ({ ...l, targetId: musicMap.get(String(l.targetId)) }))
+            .filter(l => l.targetId);
 
-        res.status(200).json({ success: true, data: likes });
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -131,10 +138,22 @@ async function getLikedMusic(req, res) {
 
 async function getLikedAlbum(req, res) {
     try {
-        const likes = await likeModel.find({ user: req.user.id, targetType: 'album' })
-            .populate('targetId');
+        const likes = await likeModel.find({ user: req.user.id, targetType: 'album' }).lean();
+        const albumIds = likes.map(l => l.targetId);
+        const albums = await albumModel.find({ _id: { $in: albumIds }, isActive: { $ne: false } })
+            .populate('artist', 'username firstName lastName profilePicture')
+            .populate({
+                path: 'songs',
+                match: { isActive: { $ne: false } },
+                populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
+            })
+            .lean();
+        const albumMap = new Map(albums.map(a => [String(a._id), a]));
+        const data = likes
+            .map(l => ({ ...l, targetId: albumMap.get(String(l.targetId)) }))
+            .filter(l => l.targetId);
 
-        res.status(200).json({ success: true, data: likes });
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -142,10 +161,17 @@ async function getLikedAlbum(req, res) {
 
 async function getLikedPlaylists(req, res) {
     try {
-        const likes = await likeModel.find({ user: req.user.id, targetType: 'playlist' })
-            .populate('targetId');
+        const likes = await likeModel.find({ user: req.user.id, targetType: 'playlist' }).lean();
+        const playlistIds = likes.map(l => l.targetId);
+        const playlists = await playlistModel.find({ _id: { $in: playlistIds } })
+            .populate('owner', 'username firstName lastName profilePicture')
+            .lean();
+        const playlistMap = new Map(playlists.map(p => [String(p._id), p]));
+        const data = likes
+            .map(l => ({ ...l, targetId: playlistMap.get(String(l.targetId)) }))
+            .filter(l => l.targetId);
 
-        res.status(200).json({ success: true, data: likes });
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }

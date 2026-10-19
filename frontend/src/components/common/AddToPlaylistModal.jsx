@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useSelector } from 'react-redux';
 import {
   Check,
   FolderPlus,
-  Loader2,
   Music,
   Plus,
   X,
@@ -11,11 +11,13 @@ import {
 import {
   useAddToPlaylistMutation,
   useCreatePlaylistMutation,
+  useGetAlbumByIdQuery,
   useGetUserPlaylistsQuery,
 } from '../../store/api';
 import { selectAccentColor, selectAccentTextColor } from '../../store/themeSlice';
 import { getDisplayName } from '../../utils/format';
 import { showToast } from '../../utils/toast';
+import { HeartbeatLoader } from './PulseAnimations';
 
 export default function AddToPlaylistModal({
   isOpen = false,
@@ -31,6 +33,13 @@ export default function AddToPlaylistModal({
   });
   const [addToPlaylist, { isLoading: isAdding }] = useAddToPlaylistMutation();
   const [createPlaylist, { isLoading: isCreating }] = useCreatePlaylistMutation();
+
+  const isAlbum = itemType === 'album';
+  const itemId = item?._id || item?.id;
+
+  const { data: fullAlbum } = useGetAlbumByIdQuery(itemId, {
+    skip: !isOpen || !isAlbum || Boolean(item?.songs?.length),
+  });
 
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [showCreateInput, setShowCreateInput] = useState(false);
@@ -58,16 +67,16 @@ export default function AddToPlaylistModal({
 
   if (!isOpen || !item) return null;
 
-  const isAlbum = itemType === 'album';
-  const targetTitle = item.title || item.name || 'Untitled';
+  const albumSongs = item.songs?.length ? item.songs : (fullAlbum?.songs || []);
+  const targetTitle = item.title || item.name || fullAlbum?.title || 'Untitled';
   const targetSubtitle = isAlbum
-    ? `${item.songs?.length || 0} tracks • ${getDisplayName(item.artist)}`
+    ? `${albumSongs.length} tracks • ${getDisplayName(item.artist || fullAlbum?.artist)}`
     : getDisplayName(item.artist, item.artistName || 'Artist');
-  const targetCover = item.coverImage || (item.img ? `https://picsum.photos/seed/${item.img}/80/80` : null);
+  const targetCover = item.coverImage || fullAlbum?.coverImage || (item.img ? `https://picsum.photos/seed/${item.img}/80/80` : null);
 
-  const targetSongId = !isAlbum ? (item._id || item.id) : undefined;
+  const targetSongId = !isAlbum ? itemId : undefined;
   const targetSongIds = isAlbum
-    ? (item.songs || []).map((s) => s._id || s).filter(Boolean)
+    ? albumSongs.map((s) => s?._id || s?.id || s).filter(Boolean)
     : undefined;
 
   const handleSelectPlaylist = async (playlist) => {
@@ -127,14 +136,18 @@ export default function AddToPlaylistModal({
     }
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+      data-add-to-playlist-modal="true"
+      onMouseDown={(e) => e.stopPropagation()}
+      className="fixed inset-0 z-10000 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
+        data-add-to-playlist-modal="true"
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-md bg-sidebar/95 backdrop-blur-2xl border border-brd rounded-t-[32px] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[85vh] animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-2 duration-300"
+        className="w-full sm:max-w-md bg-sidebar/95 backdrop-blur-2xl border border-brd rounded-t-4xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[85vh] animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-2 duration-300"
       >
         {/* Modal Header */}
         <div className="p-6 pb-4 border-b border-brd flex items-center justify-between">
@@ -186,11 +199,10 @@ export default function AddToPlaylistModal({
         )}
 
         {/* Playlists List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-1.5 scrollbar-hide max-h-[320px]">
+        <div className="flex-1 overflow-y-auto p-4 space-y-1.5 scrollbar-hide max-h-80">
           {isLoadingPlaylists ? (
-            <div className="py-12 flex flex-col items-center justify-center gap-2 text-txt-muted">
-              <Loader2 size={24} className="animate-spin text-primary" />
-              <p className="text-xs font-semibold">Loading playlists...</p>
+            <div className="py-8">
+              <HeartbeatLoader variant="block" size={24} text="Loading playlists..." color={accentColor} />
             </div>
           ) : playlists.length === 0 ? (
             <div className="py-8 text-center text-txt-muted">
@@ -284,7 +296,7 @@ export default function AddToPlaylistModal({
                 className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
                 style={{ backgroundColor: accentColor, color: accentTextColor }}
               >
-                {isCreating ? <Loader2 size={14} className="animate-spin" /> : 'Create'}
+                {isCreating ? <HeartbeatLoader size={16} color={accentTextColor} /> : 'Create'}
               </button>
               <button
                 type="button"
@@ -307,6 +319,7 @@ export default function AddToPlaylistModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
