@@ -21,7 +21,7 @@ import {
   useGetAllMusicQuery,
   useRecordPlayMutation,
 } from '../store/api';
-import { playTracks, selectCurrentTrack, selectIsPlaying } from '../store/playerSlice';
+import { playSingleTrack, playTracks, selectCurrentTrack, selectIsPlaying } from '../store/playerSlice';
 import { selectAccentColor, selectAccentTextColor } from '../store/themeSlice';
 import TrackActionMenu from '../components/common/TrackActionMenu';
 import AddToPlaylistModal from '../components/common/AddToPlaylistModal';
@@ -187,8 +187,12 @@ export default function DiscoverPage() {
 
   const [recordPlay] = useRecordPlayMutation();
 
-  const handlePlaySong = (song, trackList = [song], index = 0) => {
-    dispatch(playTracks(trackList, index));
+  const handlePlaySong = (song, trackList = null, index = 0) => {
+    if (Array.isArray(trackList) && trackList.length > 1) {
+      dispatch(playTracks(trackList, index));
+    } else {
+      dispatch(playSingleTrack(song));
+    }
     if (song?._id && !String(song._id).startsWith('sample-')) {
       recordPlay(song._id).catch(() => {});
     }

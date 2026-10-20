@@ -25,7 +25,7 @@ import {
   setAccent,
   toggleDark,
 } from '../../store/themeSlice';
-import { playTracks, selectCurrentTrack, selectIsPlaying } from '../../store/playerSlice';
+import { playSingleTrack, playTracks, selectCurrentTrack, selectIsPlaying } from '../../store/playerSlice';
 import { HeartbeatLoader, PlayingOverlay } from '../common/PulseAnimations';
 import { useSearchQuery, useRecordPlayMutation } from '../../store/api';
 import TrackActionMenu from '../common/TrackActionMenu';
@@ -95,7 +95,7 @@ export default function TopNav({
       searchResults.playlists?.length > 0);
 
   const handlePlaySong = (song) => {
-    dispatch(playTracks([song], 0));
+    dispatch(playSingleTrack(song));
     if (song?._id && !String(song._id).startsWith('sample-')) {
       recordPlay(song._id).catch(() => {});
     }

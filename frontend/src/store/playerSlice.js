@@ -5,6 +5,27 @@ import { shuffleArray } from '../utils/track';
 
 const REPEAT_MODES = ['off', 'all', 'one'];
 const RESTART_THRESHOLD_SECONDS = 3;
+const MAX_QUEUE_SIZE = 40;
+const HISTORY_BUFFER = 5;
+
+/** Quietly clears old played tracks from the front of the queue if exceeding MAX_QUEUE_SIZE */
+function pruneQueue(state) {
+  if (!Array.isArray(state.queue) || state.queue.length <= MAX_QUEUE_SIZE) return;
+  const maxPrunable = Math.max(0, state.currentIndex - HISTORY_BUFFER);
+  if (maxPrunable <= 0) return;
+
+  const excess = state.queue.length - MAX_QUEUE_SIZE;
+  const pruneCount = Math.min(excess, maxPrunable);
+  if (pruneCount <= 0) return;
+
+  const pruned = state.queue.splice(0, pruneCount);
+  state.currentIndex -= pruneCount;
+
+  if (Array.isArray(state.originalQueue)) {
+    const prunedIds = new Set(pruned.map((t) => t?._id || t?.id).filter(Boolean));
+    state.originalQueue = state.originalQueue.filter((t) => !prunedIds.has(t?._id || t?.id));
+  }
+}
 
 export const DEFAULT_PLAYER_STATE = {
   queue: [],
@@ -58,11 +79,13 @@ const playerSlice = createSlice({
       state.currentIndex = payload.currentIndex;
       state.isPlaying = true;
       state.playRequestId += 1;
+      pruneQueue(state);
     },
     jumpTo(state, { payload: index }) {
       state.currentIndex = index;
       state.isPlaying = true;
       state.playRequestId += 1;
+      pruneQueue(state);
     },
     setPlaying(state, { payload: isPlaying }) {
       state.isPlaying = isPlaying;
@@ -103,6 +126,7 @@ const playerSlice = createSlice({
         state.originalQueue.push(track);
       }
       if (state.currentIndex === -1 && state.queue.length > 0) state.currentIndex = 0;
+      pruneQueue(state);
     },
     playNext(state, { payload }) {
       if (!payload) return;
@@ -115,6 +139,7 @@ const playerSlice = createSlice({
         state.currentIndex = 0;
         state.isPlaying = true;
         state.playRequestId += 1;
+        pruneQueue(state);
         return;
       }
 
@@ -145,6 +170,58 @@ const playerSlice = createSlice({
       if (!state.isShuffle) {
         state.originalQueue = [...newQueue];
       }
+      pruneQueue(state);
+    },
+    appendAndPlay(state, { payload: track }) {
+      if (!track) return;
+      const trackId = track._id || track.id;
+
+      if (!state.queue.length || state.currentIndex === -1) {
+        state.queue = [track];
+        state.originalQueue = [track];
+        state.currentIndex = 0;
+        state.isPlaying = true;
+        state.playRequestId += 1;
+        return;
+      }
+
+      const current = state.queue[state.currentIndex];
+      if (current && (current._id || current.id) === trackId) {
+        state.isPlaying = true;
+        return;
+      }
+
+      let newCurrentIndex = state.currentIndex;
+      const existingIndex = state.queue.findIndex(
+        (t, idx) => idx !== state.currentIndex && (t._id || t.id) === trackId
+      );
+
+      if (existingIndex !== -1) {
+        state.queue.splice(existingIndex, 1);
+        if (existingIndex < state.currentIndex) {
+          newCurrentIndex -= 1;
+        }
+        if (Array.isArray(state.originalQueue)) {
+          const origIdx = state.originalQueue.findIndex((t) => (t._id || t.id) === trackId);
+          if (origIdx !== -1) {
+            state.originalQueue.splice(origIdx, 1);
+          }
+        }
+      }
+
+      const insertIndex = newCurrentIndex + 1;
+      state.queue.splice(insertIndex, 0, track);
+      state.currentIndex = insertIndex;
+      state.isPlaying = true;
+      state.playRequestId += 1;
+
+      if (!state.isShuffle) {
+        state.originalQueue = [...state.queue];
+      } else {
+        state.originalQueue.push(track);
+      }
+
+      pruneQueue(state);
     },
     removeFromQueue(state, { payload: index }) {
       if (typeof index !== 'number' || index < 0 || index >= state.queue.length) return;
@@ -238,6 +315,7 @@ export const {
   setShuffle,
   addToQueue,
   playNext,
+  appendAndPlay,
   removeFromQueue,
   reorderQueue,
   clearQueue,
@@ -288,13 +366,31 @@ export const playTracks = (tracks, startIndex = 0) => (dispatch, getState) => {
   }
 };
 
+/**
+ * Universal playTrack:
+ * - If contextTracks is provided with multiple items, treat as collection play starting at track.
+ * - If standalone track (no context), perform Append & Jump without wiping the existing queue.
+ */
 export const playTrack = (track, contextTracks) => (dispatch) => {
-  const rawTracks = contextTracks?.length ? contextTracks : [track];
-  const cleanTracks = deduplicateTracks(rawTracks);
-  const targetId = track?._id || track?.id;
-  const index = targetId ? cleanTracks.findIndex((t) => (t._id || t.id) === targetId) : 0;
-  dispatch(playTracks(cleanTracks, Math.max(index, 0)));
+  if (!track) return;
+  if (Array.isArray(contextTracks) && contextTracks.length > 1) {
+    const cleanTracks = deduplicateTracks(contextTracks);
+    const targetId = track?._id || track?.id;
+    const index = targetId ? cleanTracks.findIndex((t) => (t._id || t.id) === targetId) : 0;
+    dispatch(playTracks(cleanTracks, Math.max(index, 0)));
+  } else {
+    dispatch(appendAndPlay(track));
+  }
 };
+
+/** Standalone track playback with Append & Jump (keeps existing queue intact) */
+export const playSingleTrack = (track) => (dispatch) => {
+  if (!track) return;
+  dispatch(appendAndPlay(track));
+};
+
+/** Semantic alias for playing an album, playlist, or list collection */
+export const playCollection = playTracks;
 
 export const togglePlay = () => (dispatch, getState) => {
   const { queue, currentIndex, isPlaying } = getState().player;

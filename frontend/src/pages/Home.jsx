@@ -13,7 +13,7 @@ import {
   useRecordPlayMutation,
 } from '../store/api';
 import { selectCurrentUser } from '../store/authSlice';
-import { playTrack, playTracks, selectCurrentTrack, selectIsPlaying, togglePlay } from '../store/playerSlice';
+import { playSingleTrack, playTrack, playTracks, selectCurrentTrack, selectIsPlaying, togglePlay } from '../store/playerSlice';
 import {
   selectAccentColor,
   selectAccentTextColor,
@@ -238,9 +238,9 @@ const HomePage = () => {
   const greeting = getGreeting();
   const displayName = user?.firstName || user?.username || 'Shayan';
 
-  const handlePlaySong = (track, e) => {
+  const handlePlaySong = (track, context = recentTracks, e) => {
     if (e) e.stopPropagation();
-    dispatch(playTrack(track, recentTracks));
+    dispatch(playTrack(track, context));
     if (track._id && !String(track._id).startsWith('sample-')) {
       recordPlay(track._id).catch(() => {});
     }
@@ -265,7 +265,11 @@ const HomePage = () => {
     } else if (slide.type === 'playlist') {
       handlePlayPlaylist(slide.item, null, true);
     } else {
-      handlePlaySong(slide.item);
+      // Standalone track -> Append & Jump without clearing queue
+      dispatch(playSingleTrack(slide.item));
+      if (slide.item._id && !String(slide.item._id).startsWith('sample-')) {
+        recordPlay(slide.item._id).catch(() => {});
+      }
     }
   };
 
@@ -284,7 +288,7 @@ const HomePage = () => {
         handlePlaySlide(slide);
       }
     } else {
-      handlePlaySong(slide.item);
+      handlePlaySlide(slide);
     }
   };
 
@@ -336,7 +340,7 @@ const HomePage = () => {
     if (isAlbum) {
       handlePlayAlbum(release, e, isPlayButton);
     } else {
-      handlePlaySong(release, e);
+      handlePlaySong(release, displayReleases, e);
     }
   };
 
