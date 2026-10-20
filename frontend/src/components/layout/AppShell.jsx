@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { Outlet, NavLink } from 'react-router-dom';
-import { Home, Search, Library } from 'lucide-react';
+import { Home, Compass, Library } from 'lucide-react';
 import { selectAccentColor } from '../../store/themeSlice';
 import Sidebar from './Sidebar';
 import TopNav from './TopNav';
@@ -85,10 +85,10 @@ export default function AppShell() {
             }`
           }
           style={({ isActive }) => (isActive ? { color: accentColor } : undefined)}
-          aria-label="Search"
+          aria-label="Explore"
         >
-          <Search size={22} />
-          <span className="text-[10px]">Search</span>
+          <Compass size={22} />
+          <span className="text-[10px]">Explore</span>
         </NavLink>
         <NavLink
           to="/library"

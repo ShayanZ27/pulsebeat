@@ -3,12 +3,12 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   BarChart3,
+  Compass,
   Headphones,
   Home,
   Library,
   LogOut,
   Plus,
-  Search,
   Star,
   TrendingUp,
 } from 'lucide-react';
@@ -108,7 +108,7 @@ export default function Sidebar() {
               : undefined
           }
         >
-          <Search size={20} /> Search
+          <Compass size={20} /> Explore
         </NavLink>
 
         <NavLink
