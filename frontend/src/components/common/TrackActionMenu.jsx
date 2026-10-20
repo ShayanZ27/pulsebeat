@@ -24,6 +24,7 @@ import {
 import { addToQueue, playNext } from '../../store/playerSlice';
 import { showToast } from '../../utils/toast';
 import AddToPlaylistModal from './AddToPlaylistModal';
+import ReportModal from './ReportModal';
 
 export default function TrackActionMenu({
   item: propItem,
@@ -42,6 +43,7 @@ export default function TrackActionMenu({
   const dispatch = useDispatch();
   const [isOpen, setIsOpen] = useState(false);
   const [internalPlaylistOpen, setInternalPlaylistOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
   const triggerRef = useRef(null);
   const menuRef = useRef(null);
@@ -262,7 +264,7 @@ export default function TrackActionMenu({
   const handleReport = (e) => {
     e.stopPropagation();
     setIsOpen(false);
-    showToast('Thanks for reporting. We will review this.', 'info');
+    setIsReportModalOpen(true);
   };
 
   return (
@@ -394,14 +396,16 @@ export default function TrackActionMenu({
             </button>
 
             {/* Report */}
-            <button
-              type="button"
-              onClick={handleReport}
-              className="w-full px-4 py-2.5 text-xs font-semibold text-txt-muted hover:text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-3 cursor-pointer text-left whitespace-nowrap"
-            >
-              <Flag size={15} className="shrink-0" />
-              <span className="text-left whitespace-nowrap flex-1">Report</span>
-            </button>
+            {itemType !== 'playlist' && (
+              <button
+                type="button"
+                onClick={handleReport}
+                className="w-full px-4 py-2.5 text-xs font-semibold text-txt hover:text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-3 cursor-pointer text-left whitespace-nowrap group/report"
+              >
+                <Flag size={15} className="shrink-0 text-txt-muted group-hover/report:text-red-400 transition-colors" />
+                <span className="text-left whitespace-nowrap flex-1">Report</span>
+              </button>
+            )}
           </div>,
           document.body
         )}
@@ -410,6 +414,15 @@ export default function TrackActionMenu({
         <AddToPlaylistModal
           isOpen={internalPlaylistOpen}
           onClose={() => setInternalPlaylistOpen(false)}
+          item={item}
+          itemType={itemType}
+        />
+      )}
+
+      {itemType !== 'playlist' && (
+        <ReportModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
           item={item}
           itemType={itemType}
         />

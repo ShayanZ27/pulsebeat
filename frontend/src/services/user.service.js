@@ -10,4 +10,7 @@ export const userService = {
 
   requestArtist: ({ statement }) =>
     api.put('/user/request-artist', { statement }).then(unwrap),
+
+  reportContent: ({ reportedContent, contentType, reason, description }) =>
+    api.post('/user/report', { reportedContent, contentType, reason, description }).then(unwrap),
 };

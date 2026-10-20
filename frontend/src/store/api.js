@@ -142,6 +142,9 @@ export const pulsebeatApi = createApi({
       queryFn: fromService(userService.requestArtist),
       invalidatesTags: ['UserProfile'],
     }),
+    reportContent: build.mutation({
+      queryFn: fromService(userService.reportContent),
+    }),
   }),
 });
 
@@ -178,4 +181,5 @@ export const {
   useGetUserProfileQuery,
   useUpdateUserProfileMutation,
   useRequestArtistRoleMutation,
+  useReportContentMutation,
 } = pulsebeatApi;
