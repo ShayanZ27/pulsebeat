@@ -122,11 +122,77 @@
   animation: pbBeat 1.15s ease-in-out infinite;
   transition: none;
 }
-.pb-heartbeat-halo {
-  animation: pbHalo 1.15s ease-out infinite;
-}
 @media (prefers-reduced-motion: reduce) {
-  .pb-heartbeat-trace, .pb-heartbeat-dot, .pb-heartbeat-halo { animation: none; stroke-dasharray: none; }
+  .pb-heartbeat-trace, .pb-heartbeat-dot { animation: none; stroke-dasharray: none; }
+}
+
+@keyframes pb-showcase-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes pb-slide-in-right {
+  0% {
+    transform: translate3d(100%, 0, 0);
+    opacity: 0.2;
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes pb-slide-out-left {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(-100%, 0, 0);
+    opacity: 0.15;
+  }
+}
+
+@keyframes pb-slide-in-left {
+  0% {
+    transform: translate3d(-100%, 0, 0);
+    opacity: 0.2;
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes pb-slide-out-right {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(100%, 0, 0);
+    opacity: 0.15;
+  }
+}
+
+.pb-slide-in-right {
+  animation: pb-slide-in-right 450ms cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.pb-slide-out-left {
+  animation: pb-slide-out-left 450ms cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.pb-slide-in-left {
+  animation: pb-slide-in-left 450ms cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.pb-slide-out-right {
+  animation: pb-slide-out-right 450ms cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+  will-change: transform, opacity;
 }
 
 /* Smooth transitions for theme changes */

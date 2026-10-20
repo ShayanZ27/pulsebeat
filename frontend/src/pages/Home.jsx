@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { CheckCircle2, Disc, Play, Sparkles, Star } from 'lucide-react';
+import { CheckCircle2, Disc, Pause, Play, Sparkles, Star } from 'lucide-react';
 import {
   useGetCommunityPlaylistsQuery,
+  useGetFeaturedQuery,
   useGetLatestReleasesQuery,
   useGetRecentlyPlayedQuery,
   useGetTrendingAlbumsQuery,
@@ -12,7 +13,7 @@ import {
   useRecordPlayMutation,
 } from '../store/api';
 import { selectCurrentUser } from '../store/authSlice';
-import { playTrack, playTracks, selectCurrentTrack, selectIsPlaying } from '../store/playerSlice';
+import { playTrack, playTracks, selectCurrentTrack, selectIsPlaying, togglePlay } from '../store/playerSlice';
 import {
   selectAccentColor,
   selectAccentTextColor,
@@ -21,6 +22,7 @@ import { getDisplayName, getGreeting } from '../utils/format';
 import TrackActionMenu from '../components/common/TrackActionMenu';
 import AddToPlaylistModal from '../components/common/AddToPlaylistModal';
 import { PlayingOverlay } from '../components/common/PulseAnimations';
+import FeaturedShowcase from '../components/common/FeaturedShowcase';
 
 /* ─── Custom Premium SVGs (Line Art) ─── */
 
@@ -209,6 +211,7 @@ const HomePage = () => {
   const { data: trendingAlbums = [] } = useGetTrendingAlbumsQuery(10);
   const { data: trendingArtists = [] } = useGetTrendingArtistsQuery(10);
   const { data: latestReleases = [] } = useGetLatestReleasesQuery(10);
+  const { data: featuredData = [] } = useGetFeaturedQuery();
   const [recordPlay] = useRecordPlayMutation();
 
   // Live song collections with graceful fallbacks
@@ -221,11 +224,16 @@ const HomePage = () => {
   const displayArtists = trendingArtists.length > 0 ? trendingArtists : fallbackArtists;
   const displayReleases = latestReleases.length > 0 ? latestReleases : trendingTracks.slice(0, 8);
 
-  // Featured Album from live trending albums or fallback
-  const featuredAlbum = displayAlbums.length > 0 ? displayAlbums[0] : null;
-  const featuredTitle = featuredAlbum?.title || 'After Hours';
-  const featuredArtist = featuredAlbum ? getDisplayName(featuredAlbum.artist, 'The Weeknd') : 'The Weeknd';
-  const featuredCover = featuredAlbum?.coverImage || 'https://picsum.photos/seed/afterhours/500/400';
+  // Featured slides: admin-pinned or hybrid backfill from API, fallback to curated mix
+  const featuredSlides = (Array.isArray(featuredData) && featuredData.length > 0)
+    ? featuredData
+    : [
+        ...(displayAlbums[0] ? [{ type: 'album', item: displayAlbums[0] }] : []),
+        ...(trendingTracks[0] ? [{ type: 'track', item: trendingTracks[0] }] : []),
+        ...(displayPlaylists[0] ? [{ type: 'playlist', item: displayPlaylists[0] }] : []),
+        ...(displayAlbums[1] ? [{ type: 'album', item: displayAlbums[1] }] : []),
+        ...(trendingTracks[1] ? [{ type: 'track', item: trendingTracks[1] }] : []),
+      ];
 
   const greeting = getGreeting();
   const displayName = user?.firstName || user?.username || 'Shayan';
@@ -239,7 +247,9 @@ const HomePage = () => {
   };
 
   const handleHeroPlay = () => {
-    if (trendingTracks.length > 0) {
+    if (currentTrack) {
+      dispatch(togglePlay());
+    } else if (trendingTracks.length > 0) {
       dispatch(playTracks(trendingTracks, 0));
       const first = trendingTracks[0];
       if (first?._id && !String(first._id).startsWith('sample-')) {
@@ -248,15 +258,33 @@ const HomePage = () => {
     }
   };
 
-  const handlePlayFeatured = () => {
-    if (featuredAlbum?.songs?.length > 0) {
-      dispatch(playTracks(featuredAlbum.songs, 0));
-      const first = featuredAlbum.songs[0];
-      if (first?._id && !String(first._id).startsWith('sample-')) {
-        recordPlay(first._id).catch(() => {});
+  const handlePlaySlide = (slide) => {
+    if (!slide?.item) return;
+    if (slide.type === 'album') {
+      handlePlayAlbum(slide.item, null, true);
+    } else if (slide.type === 'playlist') {
+      handlePlayPlaylist(slide.item, null, true);
+    } else {
+      handlePlaySong(slide.item);
+    }
+  };
+
+  const handleOpenSlide = (slide) => {
+    if (!slide?.item) return;
+    if (slide.type === 'album') {
+      if (slide.item._id && !String(slide.item._id).startsWith('sample-')) {
+        navigate(`/album/${slide.item._id}`);
+      } else {
+        handlePlaySlide(slide);
+      }
+    } else if (slide.type === 'playlist') {
+      if (slide.item._id && !String(slide.item._id).startsWith('mix-')) {
+        navigate(`/playlist/${slide.item._id}`);
+      } else {
+        handlePlaySlide(slide);
       }
     } else {
-      handleHeroPlay();
+      handlePlaySong(slide.item);
     }
   };
 
@@ -316,7 +344,7 @@ const HomePage = () => {
     <>
       {/* ── Hero Section ── */}
       <section
-        className="mb-14 flex flex-col md:flex-row gap-10 items-center md:items-stretch relative border rounded-3xl overflow-hidden p-10 md:p-14 bg-sidebar/50 backdrop-blur-sm shadow-sm"
+        className="mb-14 flex flex-col md:flex-row gap-10 items-center md:items-stretch relative border rounded-3xl overflow-hidden p-10 md:p-14 bg-sidebar/50 backdrop-blur-sm shadow-sm md:min-h-[440px]"
         style={{ borderColor: accentColor + '40' }}
       >
         {/* Custom SVG Line Art Backgrounds */}
@@ -377,67 +405,41 @@ const HomePage = () => {
               className="flex items-center gap-3 px-8 py-4 rounded-full text-base font-bold w-fit hover:scale-105 active:scale-95 transition-all shadow-xl cursor-pointer"
               style={{ backgroundColor: accentColor, color: accentTextColor }}
             >
-              <Play size={20} fill={accentTextColor} /> Play Now
+              {isPlaying ? (
+                <>
+                  <Pause size={20} fill={accentTextColor} /> Pause
+                </>
+              ) : currentTrack ? (
+                <>
+                  <Play size={20} fill={accentTextColor} /> Resume
+                </>
+              ) : (
+                <>
+                  <Play size={20} fill={accentTextColor} /> Play Now
+                </>
+              )}
             </button>
-            <button className="flex items-center gap-3 px-8 py-4 rounded-full border border-brd bg-sidebar text-base font-bold text-txt w-fit hover:bg-elevated hover:border-transparent active:scale-95 transition-all shadow-sm cursor-pointer">
+            <button
+              onClick={() => navigate('/discover')}
+              className="flex items-center gap-3 px-8 py-4 rounded-full border border-brd bg-sidebar text-base font-bold text-txt w-fit hover:bg-elevated hover:border-transparent active:scale-95 transition-all shadow-sm cursor-pointer"
+            >
               Explore
             </button>
           </div>
         </div>
 
-        {/* Right: Featured Album Card */}
-        <div
-          onClick={handlePlayFeatured}
-          className="flex-1 max-w-[420px] w-full bg-sidebar border border-brd rounded-[32px] overflow-hidden relative group cursor-pointer hover:shadow-xl transition-all duration-300"
-        >
-          {featuredAlbum && (
-            <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-              <TrackActionMenu
-                item={featuredAlbum}
-                itemType="album"
-                onOpenPlaylistModal={(albumItem) => {
-                  setPlaylistModalItem(albumItem);
-                  setPlaylistModalType('album');
-                }}
-                triggerClassName="w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
-              />
-            </div>
-          )}
-          <div className="relative z-10 p-8 flex flex-col justify-center h-full">
-            <div className="flex items-center gap-2 mb-4">
-              <Star size={14} style={{ color: accentColor }} fill={accentColor} />
-              <p
-                className="text-[10px] uppercase font-space font-bold tracking-widest"
-                style={{ color: accentColor }}
-              >
-                Featured Album
-              </p>
-            </div>
-            <h2 className="text-4xl font-space font-black text-txt mb-2">{featuredTitle}</h2>
-            <p className="text-base font-medium text-txt-sec mb-8">{featuredArtist}</p>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePlayFeatured();
-              }}
-              className="flex items-center justify-center px-6 py-2.5 rounded-full bg-elevated/50 backdrop-blur-md border border-brd text-sm font-bold text-txt hover:bg-txt hover:text-bg transition-colors w-32 shadow-sm cursor-pointer"
-            >
-              Play Album
-            </button>
-          </div>
-          {/* Album art background */}
-          <div className="absolute right-0 top-0 h-full w-2/3 overflow-hidden">
-            <img
-              src={featuredCover}
-              alt={featuredTitle}
-              className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700 ease-out"
-              style={{
-                maskImage: 'linear-gradient(to right, transparent 0%, black 50%)',
-                WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 50%)',
-              }}
-            />
-          </div>
-        </div>
+        {/* Right: Featured Showcase Slideshow */}
+        <FeaturedShowcase
+          slides={featuredSlides}
+          accentColor={accentColor}
+          onPlay={handlePlaySlide}
+          onOpen={handleOpenSlide}
+          onArtistClick={(artistId) => navigate(`/artist/${artistId}`)}
+          onOpenPlaylistModal={(item, type) => {
+            setPlaylistModalItem(item);
+            setPlaylistModalType(type);
+          }}
+        />
       </section>
 
       {/* ── Recently Played ── */}

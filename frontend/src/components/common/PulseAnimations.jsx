@@ -175,11 +175,6 @@ export function PlayingOverlay({
     >
       <AnimationStyles />
       <div className="relative flex items-center justify-center">
-        {/* Soft breathing halo behind the EKG */}
-        <div
-          className="absolute w-7 h-7 rounded-full pb-anim-halo pointer-events-none"
-          style={{ backgroundColor: activeColor, opacity: 0.3 }}
-        />
         <PlayingHeartbeat
           color={activeColor}
           size={size}

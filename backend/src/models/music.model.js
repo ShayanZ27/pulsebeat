@@ -66,6 +66,16 @@ const musicSchema = new mongoose.Schema({
     isActive: {
         type: Boolean,
         default: true
+    },
+    // Hero showcase: pinned by admin, lower featuredOrder shows first
+    isFeatured: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    featuredOrder: {
+        type: Number,
+        default: 0
     }
 }, { timestamps: true });
 

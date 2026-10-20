@@ -48,6 +48,7 @@ export const pulsebeatApi = createApi({
     getTrendingMusic: build.query({ queryFn: fromService(musicService.getTrending) }),
     getTrendingAlbums: build.query({ queryFn: fromService(musicService.getTrendingAlbums) }),
     getTrendingArtists: build.query({ queryFn: fromService(musicService.getTrendingArtists) }),
+    getFeatured: build.query({ queryFn: fromService(musicService.getFeatured) }),
     getRecentlyPlayed: build.query({
       queryFn: fromService(musicService.getRecentlyPlayed),
       providesTags: ['RecentlyPlayed'],
@@ -138,6 +139,7 @@ export const {
   useGetTrendingMusicQuery,
   useGetTrendingAlbumsQuery,
   useGetTrendingArtistsQuery,
+  useGetFeaturedQuery,
   useGetRecentlyPlayedQuery,
   useGetUserPlaylistsQuery,
   useGetPlaylistByIdQuery,

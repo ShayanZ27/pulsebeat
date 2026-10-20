@@ -10,6 +10,7 @@ const playlistRoute = require('./routes/playlist.route');
 const searchRoute = require('./routes/search.route');
 const adminRoute = require('./routes/admin.route');
 const activityRoute = require('./routes/activity.route');
+const featuredRoute = require('./routes/featured.route');
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/playlist', playlistRoute);
 app.use('/api/search', searchRoute);
 app.use('/api/admin', adminRoute);
 app.use('/api/activity', activityRoute);
+app.use('/api/featured', featuredRoute);
 
 
 module.exports = app;

@@ -10,6 +10,9 @@ export const musicService = {
   getArtistMusic: (id) => api.get(`/music/artist/${id}/music`).then(unwrap),
   getArtistAlbums: (id) => api.get(`/music/artist/${id}/albums`).then(unwrap),
 
+  /** Hero showcase slides: [{ type: 'album' | 'track' | 'playlist', item }] */
+  getFeatured: () => api.get('/featured').then(unwrap),
+
   /** Returns Music documents, unwrapped from the RecentlyPlayed records. */
   getRecentlyPlayed: () =>
     api
