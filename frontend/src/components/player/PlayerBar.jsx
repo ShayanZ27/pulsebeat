@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   ChevronDown,
@@ -29,6 +30,7 @@ import {
   selectIsShuffle,
   selectRepeatMode,
   selectVolume,
+  setFullScreen,
   setVolume,
   toggleMute,
   togglePlay,
@@ -98,6 +100,7 @@ function ProgressBar({ accentColor }) {
 
 export default function PlayerBar({ onToggleRightPanel }) {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const accentColor = useSelector(selectAccentColor);
   const accentTextColor = useSelector(selectAccentTextColor);
 
@@ -144,6 +147,11 @@ export default function PlayerBar({ onToggleRightPanel }) {
     ? getDisplayName(currentTrack.artist, currentTrack.artistName || 'Artist')
     : 'Select a track to play';
   const displayCover = currentTrack?.coverImage || null;
+  const artistId =
+    currentTrack?.artist?._id ||
+    currentTrack?.artist?.id ||
+    (typeof currentTrack?.artist === 'string' ? currentTrack.artist : null) ||
+    currentTrack?.artistId;
 
   const handleVolumeBarClick = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -157,7 +165,13 @@ export default function PlayerBar({ onToggleRightPanel }) {
     <footer className="h-[96px] bg-sidebar border-t border-brd flex items-center px-6 md:px-10 z-30 flex-shrink-0 relative shadow-[0_-5px_20px_rgba(0,0,0,0.03)] dark:shadow-none">
       {/* Left: Now Playing */}
       <div className="flex items-center gap-4 w-1/3 min-w-[200px]">
-        <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-sm flex-shrink-0 hidden sm:flex items-center justify-center border border-brd bg-card text-txt-muted/50 relative group cursor-pointer">
+        <div
+          onClick={() => currentTrack && dispatch(setFullScreen(true))}
+          className={`w-16 h-16 rounded-2xl overflow-hidden shadow-sm flex-shrink-0 hidden sm:flex items-center justify-center border border-brd bg-card text-txt-muted/50 relative group ${
+            currentTrack ? 'cursor-pointer' : ''
+          }`}
+          title={currentTrack ? 'Open full screen player' : undefined}
+        >
           {displayCover ? (
             <img
               src={displayCover}
@@ -168,8 +182,8 @@ export default function PlayerBar({ onToggleRightPanel }) {
             <Music2 size={24} />
           )}
           {currentTrack && (
-            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <ChevronDown size={24} className="text-white" />
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-xs">
+              <Maximize2 size={20} className="text-white drop-shadow-md" />
             </div>
           )}
           {currentTrack && isPlaying && (
@@ -179,10 +193,25 @@ export default function PlayerBar({ onToggleRightPanel }) {
           )}
         </div>
         <div className="flex flex-col justify-center min-w-0 pr-4">
-          <span className="text-[15px] font-bold text-txt truncate hover:underline cursor-pointer mb-0.5">
+          <span
+            onClick={() => currentTrack && dispatch(setFullScreen(true))}
+            className="text-[15px] font-bold text-txt truncate hover:underline cursor-pointer mb-0.5 leading-normal pb-0.5"
+            title={currentTrack ? 'Open full screen player' : undefined}
+          >
             {displayTitle}
           </span>
-          <span className="text-[11px] font-medium text-txt-muted truncate hover:underline cursor-pointer">
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              if (artistId) {
+                navigate(`/artist/${artistId}`);
+              }
+            }}
+            className={`text-[11px] font-medium text-txt-muted truncate leading-normal pb-0.5 ${
+              artistId ? 'hover:underline cursor-pointer hover:text-txt' : ''
+            }`}
+            title={artistId ? `Go to ${displayArtist}` : undefined}
+          >
             {displayArtist}
           </span>
         </div>
@@ -288,7 +317,8 @@ export default function PlayerBar({ onToggleRightPanel }) {
       {/* Right: Volume & Extras */}
       <div className="flex items-center justify-end w-1/3 gap-3 text-txt-muted pl-4">
         <button
-          className="hover:text-primary transition-colors p-2 hidden lg:block"
+          onClick={() => showToast('Lyrics not available', 'info')}
+          className="hover:text-primary transition-colors p-2 hidden lg:block cursor-pointer"
           title="Lyrics"
           aria-label="Lyrics"
         >
@@ -329,7 +359,9 @@ export default function PlayerBar({ onToggleRightPanel }) {
         </div>
 
         <button
-          className="hover:text-primary transition-colors p-2 hidden md:block"
+          onClick={() => currentTrack && dispatch(setFullScreen(true))}
+          disabled={!currentTrack}
+          className="hover:text-primary transition-colors p-2 hidden md:block cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           title="Full screen"
           aria-label="Full screen"
         >

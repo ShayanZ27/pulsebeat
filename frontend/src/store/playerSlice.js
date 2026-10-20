@@ -16,6 +16,7 @@ export const DEFAULT_PLAYER_STATE = {
   repeatMode: 'off',
   isShuffle: false,
   playRequestId: 0,
+  isFullScreen: false,
 };
 
 export function loadPersistedPlayerState(userId) {
@@ -77,6 +78,12 @@ const playerSlice = createSlice({
     cycleRepeat(state) {
       const nextIndex = (REPEAT_MODES.indexOf(state.repeatMode) + 1) % REPEAT_MODES.length;
       state.repeatMode = REPEAT_MODES[nextIndex];
+    },
+    setFullScreen(state, { payload }) {
+      state.isFullScreen = Boolean(payload);
+    },
+    toggleFullScreen(state) {
+      state.isFullScreen = !state.isFullScreen;
     },
     setShuffle(state, { payload }) {
       state.isShuffle = payload.isShuffle;
@@ -226,6 +233,8 @@ export const {
   setVolume,
   toggleMute,
   cycleRepeat,
+  setFullScreen,
+  toggleFullScreen,
   setShuffle,
   addToQueue,
   playNext,
@@ -354,5 +363,6 @@ export const selectIsMuted = (state) => state.player.isMuted;
 export const selectRepeatMode = (state) => state.player.repeatMode;
 export const selectIsShuffle = (state) => state.player.isShuffle;
 export const selectPlayRequestId = (state) => state.player.playRequestId;
+export const selectIsFullScreen = (state) => Boolean(state.player.isFullScreen);
 
 export default playerSlice.reducer;

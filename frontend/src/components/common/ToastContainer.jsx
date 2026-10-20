@@ -12,7 +12,11 @@ export default function ToastContainer() {
 
     const handleToast = (e) => {
       const detail = e.detail;
-      const message = typeof detail === 'string' ? detail : detail?.message;
+      let rawMsg = typeof detail === 'string' ? detail : detail?.message;
+      if (typeof rawMsg === 'object' && rawMsg !== null) {
+        rawMsg = rawMsg.message || '';
+      }
+      const message = String(rawMsg || '').trim();
       const type = detail?.type || 'success';
 
       if (!message) return;

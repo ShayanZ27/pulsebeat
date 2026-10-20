@@ -7,6 +7,7 @@ import Sidebar from './Sidebar';
 import TopNav from './TopNav';
 import RightPanel from './RightPanel';
 import PlayerBar from '../player/PlayerBar';
+import FullScreenPlayer from '../player/FullScreenPlayer';
 import ToastContainer from '../common/ToastContainer';
 import ErrorBoundary from '../common/ErrorBoundary';
 
@@ -105,8 +106,9 @@ export default function AppShell() {
         </NavLink>
       </div>
 
-      {/* ══════ TOAST NOTIFICATIONS ══════ */}
+      {/* ══════ TOAST NOTIFICATIONS & FULL SCREEN PLAYER ══════ */}
       <ToastContainer />
+      <FullScreenPlayer />
     </div>
   );
 }

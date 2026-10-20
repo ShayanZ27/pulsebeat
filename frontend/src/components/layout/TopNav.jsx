@@ -2,7 +2,6 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
-  Bell,
   Command,
   ListMusic,
   Menu,
@@ -433,16 +432,6 @@ export default function TopNav({
           aria-label="Toggle dark/light mode"
         >
           {isDark ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
-
-        {/* Notifications */}
-        <button
-          className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-elevated transition-colors text-txt-sec hover:text-primary relative"
-          title="Notifications"
-          aria-label="Notifications"
-        >
-          <Bell size={20} />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full border border-bg" style={{ backgroundColor: accentColor }}></span>
         </button>
 
         {/* Avatar */}
