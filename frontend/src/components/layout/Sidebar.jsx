@@ -237,17 +237,40 @@ export default function Sidebar() {
       </div>
 
       {/* Profile */}
-      <div className="p-5 border-t border-brd flex items-center gap-4 cursor-pointer hover:bg-elevated transition-colors bg-sidebar">
-        <img src="https://picsum.photos/seed/userprofile/48/48" className="w-10 h-10 rounded-full object-cover shadow-sm" alt="Profile" />
+      <div
+        onClick={() => navigate('/profile')}
+        className="p-5 border-t border-brd flex items-center gap-4 cursor-pointer hover:bg-elevated transition-colors bg-sidebar group"
+        title="View Profile"
+      >
+        {user?.profilePicture ? (
+          <img
+            src={user.profilePicture}
+            className="w-10 h-10 rounded-full object-cover shadow-sm border border-brd group-hover:border-primary transition-colors"
+            alt={user.username || 'Profile'}
+          />
+        ) : (
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm font-space shadow-sm border border-brd group-hover:border-primary transition-colors"
+            style={{ backgroundColor: `${accentColor}25`, color: accentColor }}
+          >
+            {(user?.firstName?.[0] || user?.username?.[0] || 'U').toUpperCase()}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-txt truncate font-space">{user?.username}</p>
-          <p className="text-[11px] font-semibold flex items-center gap-1" style={{ color: accentColor }}>
-            Premium <span className="text-[10px]">✦</span>
+          <p className="text-sm font-bold text-txt truncate font-space group-hover:text-primary transition-colors">
+            {user?.firstName ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}` : user?.username}
+          </p>
+          <p className="text-[11px] font-semibold flex items-center gap-1.5 text-txt-sec">
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: accentColor }} />
+            {user?.role === 'artist' ? 'Artist' : 'Listener'}
           </p>
         </div>
         <button
           id="logout-button"
-          onClick={() => logout()}
+          onClick={(e) => {
+            e.stopPropagation();
+            logout();
+          }}
           className="w-8 h-8 rounded-full flex items-center justify-center text-txt-muted hover:text-txt hover:bg-bg transition-colors"
           title="Log out"
           aria-label="Log out"

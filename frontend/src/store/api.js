@@ -7,6 +7,7 @@ import { likeService } from '../services/like.service';
 import { musicService } from '../services/music.service';
 import { playlistService } from '../services/playlist.service';
 import { searchService } from '../services/search.service';
+import { userService } from '../services/user.service';
 
 /** Dispatched when an authenticated request comes back 401 (stale/expired cookie). */
 export const sessionExpired = createAction('auth/sessionExpired');
@@ -35,7 +36,7 @@ const noSessionHandling = { signOutOn401: false };
 export const pulsebeatApi = createApi({
   reducerPath: 'api',
   baseQuery: fakeBaseQuery(),
-  tagTypes: ['RecentlyPlayed', 'UserPlaylists', 'LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'Playlist', 'Album', 'ActivityFeed'],
+  tagTypes: ['RecentlyPlayed', 'UserPlaylists', 'LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'Playlist', 'Album', 'ActivityFeed', 'UserProfile'],
   endpoints: (build) => ({
     /* ── Auth ── */
     login: build.mutation({ queryFn: fromService(authService.login, noSessionHandling) }),
@@ -128,6 +129,19 @@ export const pulsebeatApi = createApi({
       queryFn: fromService(musicService.recordPlay),
       invalidatesTags: ['RecentlyPlayed'],
     }),
+    /* ── User Profile & Artist Requests ── */
+    getUserProfile: build.query({
+      queryFn: fromService(userService.getProfile),
+      providesTags: ['UserProfile'],
+    }),
+    updateUserProfile: build.mutation({
+      queryFn: fromService(userService.updateProfile),
+      invalidatesTags: ['UserProfile'],
+    }),
+    requestArtistRole: build.mutation({
+      queryFn: fromService(userService.requestArtist),
+      invalidatesTags: ['UserProfile'],
+    }),
   }),
 });
 
@@ -161,4 +175,7 @@ export const {
   useRemoveLikeMutation,
   useRecordPlayMutation,
   useSearchQuery,
+  useGetUserProfileQuery,
+  useUpdateUserProfileMutation,
+  useRequestArtistRoleMutation,
 } = pulsebeatApi;

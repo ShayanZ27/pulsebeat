@@ -293,16 +293,23 @@ export default function EditPlaylistModal({ isOpen = false, onClose, playlist = 
               type="button"
               onClick={() => setIsPublic(!isPublic)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer shrink-0 ${
-                isPublic ? 'bg-primary' : 'bg-sidebar border border-brd'
+                isPublic
+                  ? 'border border-transparent'
+                  : 'bg-neutral-300 dark:bg-neutral-700 border border-neutral-400/40 dark:border-neutral-600/50'
               }`}
               style={isPublic ? { backgroundColor: accentColor } : undefined}
               role="switch"
               aria-checked={isPublic}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  isPublic ? 'translate-x-6' : 'translate-x-1'
+                className={`inline-block h-4 w-4 transform rounded-full transition-all duration-200 shadow-md ${
+                  isPublic
+                    ? 'translate-x-6'
+                    : 'translate-x-1 ring-1 ring-black/10 dark:ring-white/10'
                 }`}
+                style={{
+                  backgroundColor: isPublic ? accentTextColor : '#FFFFFF',
+                }}
               />
             </button>
           </div>

@@ -9,6 +9,7 @@ import AlbumPage from './pages/AlbumPage';
 import ArtistPage from './pages/ArtistPage';
 import LibraryPage from './pages/LibraryPage';
 import DiscoverPage from './pages/DiscoverPage';
+import ProfilePage from './pages/ProfilePage';
 import { selectCurrentUser } from './store/authSlice';
 
 /** Renders child routes for signed-in users; otherwise sends them to /login (remembering where they were). */
@@ -31,6 +32,7 @@ export default function App() {
             <Route path="/album/:id" element={<AlbumPage />} />
             <Route path="/artist/:id" element={<ArtistPage />} />
             <Route path="/library" element={<LibraryPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/discover" element={<Navigate to="/discover/trending" replace />} />
             <Route path="/discover/genre-and-moods" element={<Navigate to="/discover/genres" replace />} />
             <Route path="/discover/genres-and-moods" element={<Navigate to="/discover/genres" replace />} />

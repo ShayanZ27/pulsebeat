@@ -26,7 +26,8 @@ import { showToast } from '../../utils/toast';
 import AddToPlaylistModal from './AddToPlaylistModal';
 
 export default function TrackActionMenu({
-  item,
+  item: propItem,
+  track,
   itemType = 'track',
   onOpenPlaylistModal,
   onRemove,
@@ -37,6 +38,7 @@ export default function TrackActionMenu({
   direction = 'horizontal',
   align = 'right',
 }) {
+  const item = propItem || track;
   const dispatch = useDispatch();
   const [isOpen, setIsOpen] = useState(false);
   const [internalPlaylistOpen, setInternalPlaylistOpen] = useState(false);

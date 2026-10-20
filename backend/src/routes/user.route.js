@@ -6,6 +6,11 @@ const authMiddleware = require('../middlewares/auth.middleware');
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
+router.get('/profile',
+    authMiddleware.authenticateUser,
+    userController.getProfile
+);
+
 router.put('/profile',
     authMiddleware.authenticateUser,
     upload.single('profilePicture'),

@@ -5,10 +5,35 @@ const reportModel = require('../models/report.model');
 const musicModel = require('../models/music.model');
 const albumModel = require('../models/album.model');
 
+async function getProfile(req, res) {
+    try {
+        const userId = req.user.id;
+        const user = await userModel.findById(userId).select('-password');
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        const artistRequests = await artistRequestModel.find({ user: userId }).sort({ createdAt: -1 });
+        const latestArtistRequest = artistRequests[0] || null;
+
+        res.status(200).json({
+            success: true,
+            data: {
+                ...user.toObject(),
+                artistRequest: latestArtistRequest,
+                artistRequests: artistRequests || []
+            }
+        });
+    } catch (error) {
+        console.error("Error in getProfile:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
 async function updateProfile(req, res) {
     try {
         const userId = req.user.id;
-        const { username, bio } = req.body || {};
+        const { username, bio, firstName, lastName } = req.body || {};
         
         // 1. Check if the new username is taken by someone else
         if (username) {
@@ -43,6 +68,8 @@ async function updateProfile(req, res) {
         }
 
         // 3. Update User fields
+        if (firstName) user.firstName = firstName.trim();
+        if (lastName !== undefined) user.lastName = lastName.trim();
         user.username = username || user.username;
         if (bio !== undefined) {
             user.bio = bio; // Allow empty string to clear bio
@@ -55,7 +82,12 @@ async function updateProfile(req, res) {
             success: true,
             message: "Profile updated successfully",
             data: {
+                _id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
                 username: user.username,
+                email: user.email,
+                role: user.role,
                 bio: user.bio,
                 profilePicture: user.profilePicture
             }
@@ -194,6 +226,7 @@ async function getAllUsers(req, res) {
 }
 
 module.exports = {
+    getProfile,
     updateProfile,
     requestArtist,
     reportContent,

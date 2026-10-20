@@ -12,7 +12,11 @@ const { login, register, logout } = pulsebeatApi.endpoints;
 const authSlice = createSlice({
   name: 'auth',
   initialState: () => ({ user: readStorage(STORAGE_KEYS.user) }),
-  reducers: {},
+  reducers: {
+    updateUser: (state, action) => {
+      state.user = { ...state.user, ...action.payload };
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addMatcher(isAnyOf(login.matchFulfilled, register.matchFulfilled), (state, { payload }) => {
@@ -25,6 +29,7 @@ const authSlice = createSlice({
   },
 });
 
+export const { updateUser } = authSlice.actions;
 export const selectCurrentUser = (state) => state.auth.user;
 
 export default authSlice.reducer;

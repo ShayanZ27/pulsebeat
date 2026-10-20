@@ -32,6 +32,7 @@ import TrackActionMenu from '../common/TrackActionMenu';
 import AddToPlaylistModal from '../common/AddToPlaylistModal';
 import { contrastText } from '../../utils/color';
 import { formatTime } from '../../utils/format';
+import { selectCurrentUser } from '../../store/authSlice';
 
 export default function TopNav({
   isLargeDesktop = false,
@@ -40,6 +41,7 @@ export default function TopNav({
 }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const user = useSelector(selectCurrentUser);
   const accentColor = useSelector(selectAccentColor);
   const accentTextColor = useSelector(selectAccentTextColor);
   const selectedTheme = useSelector(selectSelectedTheme);
@@ -435,9 +437,23 @@ export default function TopNav({
         </button>
 
         {/* Avatar */}
-        <div className="w-10 h-10 rounded-full overflow-hidden border border-brd shadow-sm ml-2 cursor-pointer hover:border-primary transition-colors">
-          <img src="https://picsum.photos/seed/userprofile/48/48" className="w-full h-full object-cover" alt="Avatar" />
-        </div>
+        <button
+          onClick={() => navigate('/profile')}
+          className="w-10 h-10 rounded-full overflow-hidden border border-brd shadow-sm ml-2 cursor-pointer hover:border-primary transition-all flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/40 shrink-0"
+          title={`Profile (${user?.username || 'Listener'})`}
+          aria-label="View user profile"
+        >
+          {user?.profilePicture ? (
+            <img src={user.profilePicture} className="w-full h-full object-cover" alt="Avatar" />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center font-bold text-sm font-space"
+              style={{ backgroundColor: `${accentColor}25`, color: accentColor }}
+            >
+              {(user?.firstName?.[0] || user?.username?.[0] || 'U').toUpperCase()}
+            </div>
+          )}
+        </button>
 
         {/* Right panel toggle (medium desktop + mobile) */}
         {!isLargeDesktop && (

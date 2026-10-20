@@ -384,8 +384,9 @@ export const playTrack = (track, contextTracks) => (dispatch) => {
 };
 
 /** Standalone track playback with Append & Jump (keeps existing queue intact) */
-export const playSingleTrack = (track) => (dispatch) => {
-  if (!track) return;
+export const playSingleTrack = (payload) => (dispatch) => {
+  if (!payload) return;
+  const track = payload.track || payload;
   dispatch(appendAndPlay(track));
 };
 
