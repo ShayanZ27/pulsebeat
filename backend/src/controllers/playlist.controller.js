@@ -60,7 +60,6 @@ async function addSong(req, res) {
 
         for (const s of newSongs) {
             playlist.songs.push(s._id);
-            playlist.totalDuration = (playlist.totalDuration || 0) + (s.duration || 0);
         }
 
         await playlist.save();
@@ -118,7 +117,6 @@ async function removeSong(req, res) {
         }
 
         playlist.songs.pull(songId);
-        playlist.totalDuration -= song.duration;
 
         await playlist.save();
 
@@ -134,7 +132,7 @@ async function getUserPlaylists(req, res) {
             .sort({ createdAt: -1 })
             .populate({
                 path: 'songs',
-                match: { isActive: { $ne: false } },
+                match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
                 populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
             });
 
@@ -153,7 +151,7 @@ async function getPlaylistById(req, res) {
             .populate('owner', 'username firstName lastName profilePicture')
             .populate({
                 path: 'songs',
-                match: { isActive: { $ne: false } },
+                match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
                 populate: {
                     path: 'artist',
                     select: 'username firstName lastName profilePicture'
@@ -239,7 +237,7 @@ async function getCommunityPlaylists(req, res) {
             .populate('owner', 'username profilePicture')
             .populate({
                 path: 'songs',
-                match: { isActive: { $ne: false } },
+                match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
                 populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
             });
 

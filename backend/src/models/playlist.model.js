@@ -35,10 +35,6 @@ const playlistSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
-    totalDuration: {
-        type: Number,
-        default: 0,
-    },
     // Hero showcase: pinned by admin, lower featuredOrder shows first
     isFeatured: {
         type: Boolean,
@@ -50,7 +46,22 @@ const playlistSchema = new mongoose.Schema({
         default: 0
     },
 
-}, { timestamps: true })
+}, { 
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+// Dynamic totalDuration on the fly (sums populated active songs)
+playlistSchema.virtual('totalDuration').get(function() {
+    if (!this.songs || !Array.isArray(this.songs)) return 0;
+    return this.songs.reduce((acc, song) => {
+        if (song && typeof song === 'object' && song.duration) {
+            return acc + (song.duration || 0);
+        }
+        return acc;
+    }, 0);
+});
 
 const playlistModel = mongoose.model('Playlist', playlistSchema);
 

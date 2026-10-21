@@ -4,7 +4,7 @@ const playlistModel = require('../models/playlist.model');
 
 const SLIDE_COUNT = 5;
 const ARTIST_FIELDS = 'username firstName lastName profilePicture';
-const ACTIVE = { isActive: { $ne: false } };
+const ACTIVE = { isActive: { $ne: false }, isSuspended: { $ne: true } };
 
 const songPopulate = {
     path: 'songs',

@@ -174,11 +174,16 @@ async function unsuspendUser(req, res) {
 
 async function hideContent(req, res) {
     try {
-        const { contentId } = req.params;
-        const { type } = req.query;
+        const contentId = req.params.contentId?.replace(/['"]/g, '').trim();
+        const type = typeof req.query.type === 'string' ? req.query.type.trim().toLowerCase() : req.query.type;
 
         if (!type || (type !== 'music' && type !== 'album')) {
             return res.status(400).json({ success: false, message: "Invalid type in query. Must be 'music' or 'album'" });
+        }
+
+        const mongoose = require('mongoose');
+        if (!mongoose.isValidObjectId(contentId)) {
+            return res.status(404).json({ success: false, message: `${type} not found` });
         }
 
         const model = type === 'music' ? musicModel : albumModel;
@@ -188,14 +193,14 @@ async function hideContent(req, res) {
             return res.status(404).json({ success: false, message: `${type} not found` });
         }
 
-        if (!content.isActive) {
-            return res.status(400).json({ success: false, message: `${type} is already hidden` });
+        if (content.isSuspended) {
+            return res.status(400).json({ success: false, message: `${type} is already suspended` });
         }
 
-        content.isActive = false;
+        content.isSuspended = true;
         await content.save();
 
-        res.status(200).json({ success: true, message: `${type} successfully hidden`, data: content });
+        res.status(200).json({ success: true, message: `${type} successfully suspended`, data: content });
     } catch (error) {
         console.error("Error in hideContent:", error);
         res.status(500).json({ success: false, error: error.message });
@@ -204,11 +209,16 @@ async function hideContent(req, res) {
 
 async function restoreContent(req, res) {
     try {
-        const { contentId } = req.params;
-        const { type } = req.query;
+        const contentId = req.params.contentId?.replace(/['"]/g, '').trim();
+        const type = typeof req.query.type === 'string' ? req.query.type.trim().toLowerCase() : req.query.type;
 
         if (!type || (type !== 'music' && type !== 'album')) {
             return res.status(400).json({ success: false, message: "Invalid type in query. Must be 'music' or 'album'" });
+        }
+
+        const mongoose = require('mongoose');
+        if (!mongoose.isValidObjectId(contentId)) {
+            return res.status(404).json({ success: false, message: `${type} not found` });
         }
 
         const model = type === 'music' ? musicModel : albumModel;
@@ -218,11 +228,11 @@ async function restoreContent(req, res) {
             return res.status(404).json({ success: false, message: `${type} not found` });
         }
 
-        if (content.isActive) {
-            return res.status(400).json({ success: false, message: `${type} is already active` });
+        if (!content.isSuspended) {
+            return res.status(400).json({ success: false, message: `${type} is not suspended` });
         }
 
-        content.isActive = true;
+        content.isSuspended = false;
         await content.save();
 
         res.status(200).json({ success: true, message: `${type} successfully restored`, data: content });

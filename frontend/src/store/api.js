@@ -36,7 +36,7 @@ const noSessionHandling = { signOutOn401: false };
 export const pulsebeatApi = createApi({
   reducerPath: 'api',
   baseQuery: fakeBaseQuery(),
-  tagTypes: ['RecentlyPlayed', 'UserPlaylists', 'LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'Playlist', 'Album', 'ActivityFeed', 'UserProfile'],
+  tagTypes: ['RecentlyPlayed', 'UserPlaylists', 'LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'Playlist', 'Album', 'ActivityFeed', 'UserProfile', 'ArtistMusic', 'ArtistAlbums'],
   endpoints: (build) => ({
     /* ── Auth ── */
     login: build.mutation({ queryFn: fromService(authService.login, noSessionHandling) }),
@@ -93,9 +93,41 @@ export const pulsebeatApi = createApi({
       queryFn: fromService(musicService.getAlbum),
       providesTags: (result, error, id) => [{ type: 'Album', id }],
     }),
-    getArtistMusic: build.query({ queryFn: fromService(musicService.getArtistMusic) }),
-    getArtistAlbums: build.query({ queryFn: fromService(musicService.getArtistAlbums) }),
+    getArtistMusic: build.query({
+      queryFn: fromService(musicService.getArtistMusic),
+      providesTags: ['ArtistMusic'],
+    }),
+    getArtistAlbums: build.query({
+      queryFn: fromService(musicService.getArtistAlbums),
+      providesTags: ['ArtistAlbums'],
+    }),
     getAllMusic: build.query({ queryFn: fromService(musicService.getAll) }),
+
+    /* ── Artist Content Management ── */
+    uploadMusic: build.mutation({
+      queryFn: fromService(musicService.uploadMusic),
+      invalidatesTags: ['ArtistMusic', 'ActivityFeed'],
+    }),
+    createAlbum: build.mutation({
+      queryFn: fromService(musicService.createAlbum),
+      invalidatesTags: ['ArtistAlbums', 'ActivityFeed'],
+    }),
+    toggleMusicVisibility: build.mutation({
+      queryFn: fromService(musicService.toggleMusicVisibility),
+      invalidatesTags: ['ArtistMusic'],
+    }),
+    toggleAlbumVisibility: build.mutation({
+      queryFn: fromService(musicService.toggleAlbumVisibility),
+      invalidatesTags: ['ArtistAlbums'],
+    }),
+    deleteMusic: build.mutation({
+      queryFn: fromService(musicService.deleteMusic),
+      invalidatesTags: ['ArtistMusic', 'ArtistAlbums'],
+    }),
+    deleteAlbum: build.mutation({
+      queryFn: fromService(musicService.deleteAlbum),
+      invalidatesTags: ['ArtistAlbums'],
+    }),
 
     /* ── Likes ── */
     getLikedMusic: build.query({
@@ -171,6 +203,12 @@ export const {
   useGetArtistMusicQuery,
   useGetArtistAlbumsQuery,
   useGetAllMusicQuery,
+  useUploadMusicMutation,
+  useCreateAlbumMutation,
+  useToggleMusicVisibilityMutation,
+  useToggleAlbumVisibilityMutation,
+  useDeleteMusicMutation,
+  useDeleteAlbumMutation,
   useGetLikedMusicQuery,
   useGetLikedAlbumsQuery,
   useGetLikedPlaylistsQuery,

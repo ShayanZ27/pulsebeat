@@ -96,4 +96,24 @@ router.get('/latest-releases/:limit',
     musicController.getLatestReleases
 );
 
+router.patch('/albums/:id/visibility',
+    authMiddleware.authenticateArtist,
+    musicController.toggleAlbumVisibility
+);
+
+router.delete('/albums/:id',
+    authMiddleware.authenticateArtist,
+    musicController.deleteAlbum
+);
+
+router.patch('/:id/visibility',
+    authMiddleware.authenticateArtist,
+    musicController.toggleMusicVisibility
+);
+
+router.delete('/:id',
+    authMiddleware.authenticateArtist,
+    musicController.deleteMusic
+);
+
 module.exports = router;

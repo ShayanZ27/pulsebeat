@@ -45,7 +45,7 @@ async function search(req, res) {
         // 2. Search Music
         if (type === 'all' || type === 'music') {
             promises.push(
-                musicModel.find({ title: { $regex: regex }, isActive: true })
+                musicModel.find({ title: { $regex: regex }, isActive: { $ne: false }, isSuspended: { $ne: true } })
                     .populate('artist', 'firstName lastName username profilePicture')
                     .limit(15)
                     .then(data => results.music = data)
@@ -55,11 +55,11 @@ async function search(req, res) {
         // 3. Search Albums
         if (type === 'all' || type === 'album') {
             promises.push(
-                albumModel.find({ title: { $regex: regex }, isActive: true })
+                albumModel.find({ title: { $regex: regex }, isActive: { $ne: false }, isSuspended: { $ne: true } })
                     .populate('artist', 'firstName lastName username profilePicture')
                     .populate({
                         path: 'songs',
-                        match: { isActive: { $ne: false } },
+                        match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
                         populate: { path: 'artist', select: 'firstName lastName username profilePicture' }
                     })
                     .limit(10)
@@ -74,7 +74,7 @@ async function search(req, res) {
                     .populate('owner', 'firstName lastName username profilePicture')
                     .populate({
                         path: 'songs',
-                        match: { isActive: { $ne: false } },
+                        match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
                         populate: { path: 'artist', select: 'firstName lastName username profilePicture' }
                     })
                     .limit(10)

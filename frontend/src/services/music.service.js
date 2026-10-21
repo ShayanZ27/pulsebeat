@@ -22,4 +22,21 @@ export const musicService = {
 
   /** Increments play counts and pushes the song onto the RecentlyPlayed deque. */
   recordPlay: (id) => api.post(`/music/play/${id}`).then(unwrap),
+
+  /** Artist content management */
+  uploadMusic: (formData) =>
+    api.post('/music/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(unwrap),
+
+  createAlbum: (formData) =>
+    api.post('/music/create-album', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(unwrap),
+
+  toggleMusicVisibility: (id) => api.patch(`/music/${id}/visibility`).then(unwrap),
+  toggleAlbumVisibility: (id) => api.patch(`/music/albums/${id}/visibility`).then(unwrap),
+
+  deleteMusic: (id) => api.delete(`/music/${id}`).then(unwrap),
+  deleteAlbum: (id) => api.delete(`/music/albums/${id}`).then(unwrap),
 };

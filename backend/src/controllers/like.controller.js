@@ -122,7 +122,7 @@ async function getLikedMusic(req, res) {
     try {
         const likes = await likeModel.find({ user: req.user.id, targetType: 'music' }).lean();
         const musicIds = likes.map(l => l.targetId);
-        const musics = await musicModel.find({ _id: { $in: musicIds }, isActive: { $ne: false } })
+        const musics = await musicModel.find({ _id: { $in: musicIds }, isActive: { $ne: false }, isSuspended: { $ne: true } })
             .populate('artist', 'username firstName lastName profilePicture')
             .lean();
         const musicMap = new Map(musics.map(m => [String(m._id), m]));
@@ -140,11 +140,11 @@ async function getLikedAlbum(req, res) {
     try {
         const likes = await likeModel.find({ user: req.user.id, targetType: 'album' }).lean();
         const albumIds = likes.map(l => l.targetId);
-        const albums = await albumModel.find({ _id: { $in: albumIds }, isActive: { $ne: false } })
+        const albums = await albumModel.find({ _id: { $in: albumIds }, isActive: { $ne: false }, isSuspended: { $ne: true } })
             .populate('artist', 'username firstName lastName profilePicture')
             .populate({
                 path: 'songs',
-                match: { isActive: { $ne: false } },
+                match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
                 populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
             })
             .lean();

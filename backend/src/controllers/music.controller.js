@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const musicModel = require("../models/music.model");
 const albumModel = require("../models/album.model");
 const userModel = require("../models/user.model");
@@ -190,8 +191,8 @@ async function getAllMusic(req, res) {
     try {
         const { mood, genre } = req.query;
         
-        // Base query for active music
-        let query = { isActive: { $ne: false } };
+        // Base query for active and not suspended music
+        let query = { isActive: { $ne: false }, isSuspended: { $ne: true } };
 
         // Add case-insensitive filters if provided
         if (mood) query.mood = new RegExp(`^${mood}$`, 'i');
@@ -215,8 +216,8 @@ async function getAllMusic(req, res) {
 
 async function getAllAlbums(req, res) {
     try {
-        // Fetch active albums, including older records that don't have the isActive field yet
-        const albums = await albumModel.find({ isActive: { $ne: false } }).select('title artist').populate('artist');
+        // Fetch active, non-suspended albums
+        const albums = await albumModel.find({ isActive: { $ne: false }, isSuspended: { $ne: true } }).select('title artist').populate('artist');
         res.status(200).json({
             success: true,
             message: "All active albums fetched successfully",
@@ -230,10 +231,22 @@ async function getAllAlbums(req, res) {
 
 async function getAlbumById(req, res) {
     const id = req.params.id;
+    if (!mongoose.isValidObjectId(id)) {
+        return res.status(404).json({ success: false, message: "Album not found or unavailable" });
+    }
     try {
-        const album = await albumModel.findById(id)
+        const album = await albumModel.findOne({ _id: id, isSuspended: { $ne: true } })
             .populate('artist', 'username firstName lastName profilePicture')
-            .populate({ path: 'songs', populate: { path: 'artist', select: 'username firstName lastName profilePicture' } });
+            .populate({
+                path: 'songs',
+                match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
+                populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
+            });
+
+        if (!album) {
+            return res.status(404).json({ success: false, message: "Album not found or unavailable" });
+        }
+
         res.status(200).json({
             success: true,
             message: "Album fetched successfully",
@@ -317,7 +330,7 @@ async function getTrendingMusic(req, res) {
             limit = 20;
         }
 
-        const musics = await musicModel.find({ isActive: { $ne: false } })
+        const musics = await musicModel.find({ isActive: { $ne: false }, isSuspended: { $ne: true } })
             .sort({ plays: -1, likesCount: -1 })
             .limit(limit)
             .populate('artist', 'username firstName lastName profilePicture');
@@ -339,13 +352,13 @@ async function getTrendingAlbums(req, res) {
             limit = 20;
         }
 
-        const albums = await albumModel.find({ isActive: { $ne: false } })
+        const albums = await albumModel.find({ isActive: { $ne: false }, isSuspended: { $ne: true } })
             .sort({ plays: -1, likesCount: -1 })
             .limit(limit)
             .populate('artist', 'username firstName lastName profilePicture')
             .populate({
                 path: 'songs',
-                match: { isActive: { $ne: false } },
+                match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
                 populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
             });
         res.status(200).json({
@@ -367,8 +380,8 @@ async function getTrendingArtists(req, res) {
         }
 
         const trendingArtists = await musicModel.aggregate([
-            // 1. Only look at active music
-            { $match: { isActive: { $ne: false } } },
+            // 1. Only look at active, non-suspended music
+            { $match: { isActive: { $ne: false }, isSuspended: { $ne: true } } },
 
             // 2. Group all songs by the artist, and sum up their total plays and likes
             { 
@@ -437,10 +450,16 @@ async function getArtistMusic(req, res) {
         if (!artist || artist.isSuspended) {
             return res.status(403).json({ success: false, message: "Artist is unavailable or suspended" });
         }
-        // 1. Filter out inactive tracks
-        // 2. Removed .select('title artist') because the frontend needs uri, coverImage, etc., to play the song!
-        // 3. Populate specifically selected safe fields to avoid sending the artist's password/email to the frontend
-        const musics = await musicModel.find({ artist: artistId, isActive: { $ne: false } })
+        
+        const isOwner = req.user && String(req.user.id) === String(artistId);
+        const filter = { artist: artistId };
+        if (!isOwner) {
+            filter.isActive = { $ne: false };
+            filter.isSuspended = { $ne: true };
+        }
+
+        const musics = await musicModel.find(filter)
+            .sort({ createdAt: -1 })
             .populate('artist', 'username firstName lastName profilePicture');
         res.status(200).json({
             success: true,
@@ -461,9 +480,21 @@ async function getArtistAlbums(req, res) {
         if (!artist || artist.isSuspended) {
             return res.status(403).json({ success: false, message: "Artist is unavailable or suspended" });
         }
-        // Same fixes here: check isActive, remove overly strict select, and secure populate
-        const albums = await albumModel.find({ artist: artistId, isActive: { $ne: false } })
-            .populate('artist', 'username firstName lastName profilePicture');
+        
+        const isOwner = req.user && String(req.user.id) === String(artistId);
+        const filter = { artist: artistId };
+        if (!isOwner) {
+            filter.isActive = { $ne: false };
+            filter.isSuspended = { $ne: true };
+        }
+
+        const albums = await albumModel.find(filter)
+            .sort({ createdAt: -1 })
+            .populate('artist', 'username firstName lastName profilePicture')
+            .populate({
+                path: 'songs',
+                match: isOwner ? {} : { isActive: { $ne: false }, isSuspended: { $ne: true } }
+            });
         res.status(200).json({
             success: true,
             message: "Artist albums fetched successfully",
@@ -516,19 +547,19 @@ async function getLatestReleases(req, res) {
             limit = 10;
         }
 
-        // Fetch latest music and albums in parallel
+        // Fetch latest music and albums in parallel (excluding suspended and inactive)
         const [latestMusic, latestAlbums] = await Promise.all([
-            musicModel.find({ isActive: { $ne: false } })
+            musicModel.find({ isActive: { $ne: false }, isSuspended: { $ne: true } })
                 .sort({ createdAt: -1 })
                 .limit(limit)
                 .populate('artist', 'username firstName lastName profilePicture'),
-            albumModel.find({ isActive: { $ne: false } })
+            albumModel.find({ isActive: { $ne: false }, isSuspended: { $ne: true } })
                 .sort({ createdAt: -1 })
                 .limit(limit)
                 .populate('artist', 'username firstName lastName profilePicture')
                 .populate({
                     path: 'songs',
-                    match: { isActive: { $ne: false } },
+                    match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
                     populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
                 }),
         ]);
@@ -551,6 +582,78 @@ async function getLatestReleases(req, res) {
     }
 }
 
+async function toggleMusicVisibility(req, res) {
+    try {
+        const musicId = req.params.id;
+        const music = await musicModel.findById(musicId);
+        if (!music) {
+            return res.status(404).json({ success: false, message: "Music not found" });
+        }
+        if (music.artist.toString() !== req.user.id) {
+            return res.status(403).json({ success: false, message: "Unauthorized: You do not own this track" });
+        }
+        if (music.isSuspended) {
+            return res.status(403).json({
+                success: false,
+                message: "This track has been suspended by administration and cannot be modified."
+            });
+        }
+        music.isActive = !music.isActive;
+        await music.save();
+        res.status(200).json({
+            success: true,
+            message: `Track is now ${music.isActive ? 'public' : 'hidden'}`,
+            data: music
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
+async function toggleAlbumVisibility(req, res) {
+    try {
+        const albumId = req.params.id;
+        const album = await albumModel.findById(albumId);
+        if (!album) {
+            return res.status(404).json({ success: false, message: "Album not found" });
+        }
+        if (album.artist.toString() !== req.user.id) {
+            return res.status(403).json({ success: false, message: "Unauthorized: You do not own this album" });
+        }
+        if (album.isSuspended) {
+            return res.status(403).json({
+                success: false,
+                message: "This album has been suspended by administration and cannot be modified."
+            });
+        }
+        album.isActive = !album.isActive;
+        await album.save();
+        res.status(200).json({
+            success: true,
+            message: `Album is now ${album.isActive ? 'public' : 'hidden'}`,
+            data: album
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
+async function deleteMusic(req, res) {
+    return res.status(400).json({
+        success: false,
+        message: "Permanent deletion is disabled. Please toggle visibility to hide your track instead."
+    });
+}
+
+async function deleteAlbum(req, res) {
+    return res.status(400).json({
+        success: false,
+        message: "Permanent deletion is disabled. Please toggle visibility to hide your album instead."
+    });
+}
+
 module.exports = {
     createMusic,
     createAlbum,
@@ -564,5 +667,9 @@ module.exports = {
     getArtistAlbums,
     getTrendingArtists,
     getRecentlyPlayed,
-    getLatestReleases
+    getLatestReleases,
+    toggleMusicVisibility,
+    toggleAlbumVisibility,
+    deleteMusic,
+    deleteAlbum
 };

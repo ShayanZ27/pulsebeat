@@ -5,7 +5,7 @@ const playlistModel = require('../models/playlist.model');
 
 const ARTIST_FIELDS = 'username firstName lastName profilePicture';
 // `uri` + `duration` let the client play a song straight from the feed.
-const MUSIC_FIELDS = 'title coverImage artist album uri duration isActive';
+const MUSIC_FIELDS = 'title coverImage artist album uri duration isActive isSuspended';
 
 /**
  * Activity.targetId is polymorphic but has no `ref`/`refPath`, so a plain
@@ -26,7 +26,7 @@ async function resolveTargets(activities) {
             ? musicModel.find({ _id: { $in: idsByType.music } }).select(MUSIC_FIELDS).populate('artist', ARTIST_FIELDS).lean()
             : [],
         idsByType.album.length
-            ? albumModel.find({ _id: { $in: idsByType.album } }).select('title coverImage artist isActive').populate('artist', ARTIST_FIELDS).lean()
+            ? albumModel.find({ _id: { $in: idsByType.album } }).select('title coverImage artist isActive isSuspended').populate('artist', ARTIST_FIELDS).lean()
             : [],
         idsByType.playlist.length
             ? playlistModel.find({ _id: { $in: idsByType.playlist } }).select('name coverImage isPublic songs owner').populate('owner', 'username firstName lastName').lean()
@@ -50,7 +50,7 @@ async function resolveTargets(activities) {
 
     return new Map(
         [...musics, ...albums, ...shapedPlaylists]
-            .filter(doc => doc.isActive !== false)
+            .filter(doc => doc.isActive !== false && doc.isSuspended !== true)
             .map(doc => [String(doc._id), doc])
     );
 }
