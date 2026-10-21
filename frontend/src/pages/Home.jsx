@@ -23,6 +23,7 @@ import TrackActionMenu from '../components/common/TrackActionMenu';
 import AddToPlaylistModal from '../components/common/AddToPlaylistModal';
 import { PlayingOverlay } from '../components/common/PulseAnimations';
 import FeaturedShowcase from '../components/common/FeaturedShowcase';
+import HorizontalSlider from '../components/common/HorizontalSlider';
 
 /* ─── Custom Premium SVGs (Line Art) ─── */
 
@@ -447,360 +448,307 @@ const HomePage = () => {
       </section>
 
       {/* ── Recently Played ── */}
-      <section className="mb-14">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-[26px] font-space font-bold text-txt tracking-tight">
-            Recently Played
-          </h2>
-          <span
-            className="text-sm font-bold cursor-pointer hover:underline"
-            style={{ color: accentColor }}
-          >
-            View all
-          </span>
-        </div>
-        <div className="flex gap-6 overflow-x-auto scrollbar-hide py-4 -mt-4 -mx-3 px-3">
-          {recentTracks.map((item, i) => {
-            const trackTitle = item.title || 'Untitled Track';
-            const trackArtist = getDisplayName(item.artist, item.artistName || 'Artist');
-            const trackCover = item.coverImage || (item.img ? `https://picsum.photos/seed/${item.img}/300/300` : `https://picsum.photos/seed/${i}/300/300`);
-            const isThisPlaying = currentTrack?._id === item._id && isPlaying;
+      <HorizontalSlider
+        title="Recently Played"
+        accentColor={accentColor}
+        viewAllLink="/library"
+      >
+        {recentTracks.map((item, i) => {
+          const trackTitle = item.title || 'Untitled Track';
+          const trackArtist = getDisplayName(item.artist, item.artistName || 'Artist');
+          const trackCover = item.coverImage || (item.img ? `https://picsum.photos/seed/${item.img}/300/300` : `https://picsum.photos/seed/${i}/300/300`);
+          const isThisPlaying = currentTrack?._id === item._id && isPlaying;
 
-            return (
-              <div
-                key={item._id || i}
-                onClick={(e) => handlePlaySong(item, e)}
-                className="shrink-0 w-[180px] group cursor-pointer transition-all duration-300 hover:-translate-y-2"
-              >
-                <div className="relative w-full aspect-square rounded-[24px] overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-shadow duration-300 border border-transparent group-hover:border-brd">
-                  <img
-                    src={trackCover}
-                    alt={trackTitle}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+          return (
+            <div
+              key={item._id || i}
+              onClick={(e) => handlePlaySong(item, e)}
+              className="shrink-0 w-[180px] group cursor-pointer transition-all duration-300 hover:-translate-y-2"
+            >
+              <div className="relative w-full aspect-square rounded-[24px] overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-shadow duration-300 border border-transparent group-hover:border-brd">
+                <img
+                  src={trackCover}
+                  alt={trackTitle}
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+                {isThisPlaying && (
+                  <PlayingOverlay size={28} rounded="rounded-[24px]" color={accentColor} />
+                )}
+
+                {/* 3-dot Action Menu (appears on hover) */}
+                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                  <TrackActionMenu
+                    item={item}
+                    itemType="track"
+                    onOpenPlaylistModal={(trackItem) => {
+                      setPlaylistModalItem(trackItem);
+                      setPlaylistModalType('track');
+                    }}
+                    triggerClassName="w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
                   />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
-                  {isThisPlaying && (
-                    <PlayingOverlay size={28} rounded="rounded-[24px]" color={accentColor} />
-                  )}
-
-                  {/* 3-dot Action Menu (appears on hover) */}
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                    <TrackActionMenu
-                      item={item}
-                      itemType="track"
-                      onOpenPlaylistModal={(trackItem) => {
-                        setPlaylistModalItem(trackItem);
-                        setPlaylistModalType('track');
-                      }}
-                      triggerClassName="w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
-                    />
-                  </div>
-
-                  <button
-                    onClick={(e) => handlePlaySong(item, e)}
-                    className="absolute bottom-4 right-4 w-12 h-12 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 ease-out shadow-lg cursor-pointer"
-                    style={{ backgroundColor: accentColor, color: accentTextColor }}
-                    aria-label={`Play ${trackTitle}`}
-                  >
-                    <Play size={20} fill={accentTextColor} className="ml-1" />
-                  </button>
                 </div>
-                <h3 className="text-base font-bold text-txt truncate mb-0.5 group-hover:text-primary transition-colors">
-                  {trackTitle}
-                </h3>
-                <p className="text-sm font-medium text-txt-muted truncate">{trackArtist}</p>
+
+                <button
+                  onClick={(e) => handlePlaySong(item, e)}
+                  className="absolute bottom-4 right-4 w-12 h-12 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 ease-out shadow-lg cursor-pointer"
+                  style={{ backgroundColor: accentColor, color: accentTextColor }}
+                  aria-label={`Play ${trackTitle}`}
+                >
+                  <Play size={20} fill={accentTextColor} className="ml-1" />
+                </button>
               </div>
-            );
-          })}
-        </div>
-      </section>
+              <h3 className="text-base font-bold text-txt truncate mb-0.5 group-hover:text-primary transition-colors">
+                {trackTitle}
+              </h3>
+              <p className="text-sm font-medium text-txt-muted truncate">{trackArtist}</p>
+            </div>
+          );
+        })}
+      </HorizontalSlider>
 
       {/* ── Made For You ── */}
-      <section className="mb-14">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-[26px] font-space font-bold text-txt tracking-tight">
-            Made For You
-          </h2>
-          <span
-            onClick={() => navigate('/library')}
-            className="text-sm font-bold cursor-pointer hover:underline"
-            style={{ color: accentColor }}
-          >
-            View all
-          </span>
-        </div>
-        <div className="flex gap-6 overflow-x-auto scrollbar-hide py-4 -mt-4 -mx-3 px-3">
-          {displayPlaylists.map((item, i) => {
-            const playlistTitle = item.name || item.title || 'Curated Mix';
-            const playlistCover = item.coverImage || (item.img ? `https://picsum.photos/seed/${item.img}/300/225` : `https://picsum.photos/seed/mix${i}/300/225`);
+      <HorizontalSlider
+        title="Made For You"
+        accentColor={accentColor}
+        viewAllLink="/library"
+      >
+        {displayPlaylists.map((item, i) => {
+          const playlistTitle = item.name || item.title || 'Curated Mix';
+          const playlistCover = item.coverImage || (item.img ? `https://picsum.photos/seed/${item.img}/300/225` : `https://picsum.photos/seed/mix${i}/300/225`);
 
-            return (
-              <div
-                key={item._id || i}
-                onClick={(e) => handlePlayPlaylist(item, e, false)}
-                className="shrink-0 w-[180px] group cursor-pointer transition-all duration-300 hover:-translate-y-2"
-              >
-                <div className="relative w-full aspect-[4/3] rounded-[24px] overflow-hidden shadow-sm group-hover:shadow-xl transition-shadow duration-300 border border-transparent group-hover:border-brd">
-                  <img
-                    src={playlistCover}
-                    alt={playlistTitle}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+          return (
+            <div
+              key={item._id || i}
+              onClick={(e) => handlePlayPlaylist(item, e, false)}
+              className="shrink-0 w-[180px] group cursor-pointer transition-all duration-300 hover:-translate-y-2"
+            >
+              <div className="relative w-full aspect-[4/3] rounded-[24px] overflow-hidden shadow-sm group-hover:shadow-xl transition-shadow duration-300 border border-transparent group-hover:border-brd">
+                <img
+                  src={playlistCover}
+                  alt={playlistTitle}
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <h3 className="absolute bottom-4 left-4 text-xl font-space font-black text-white leading-tight whitespace-pre-line drop-shadow-md">
+                  {playlistTitle}
+                </h3>
+
+                {/* 3-dot Action Menu (appears on hover) */}
+                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                  <TrackActionMenu
+                    item={item}
+                    itemType="playlist"
+                    triggerClassName="w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                  <h3 className="absolute bottom-4 left-4 text-xl font-space font-black text-white leading-tight whitespace-pre-line drop-shadow-md">
-                    {playlistTitle}
-                  </h3>
-
-                  {/* 3-dot Action Menu (appears on hover) */}
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                    <TrackActionMenu
-                      item={item}
-                      itemType="playlist"
-                      triggerClassName="w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
-                    />
-                  </div>
-
-                  <button
-                    onClick={(e) => handlePlayPlaylist(item, e, true)}
-                    className="absolute bottom-4 right-4 w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 ease-out shadow-lg cursor-pointer"
-                    style={{ backgroundColor: accentColor, color: accentTextColor }}
-                    aria-label={`Play ${playlistTitle}`}
-                  >
-                    <Play size={16} fill={accentTextColor} className="ml-0.5" />
-                  </button>
                 </div>
+
+                <button
+                  onClick={(e) => handlePlayPlaylist(item, e, true)}
+                  className="absolute bottom-4 right-4 w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 ease-out shadow-lg cursor-pointer"
+                  style={{ backgroundColor: accentColor, color: accentTextColor }}
+                  aria-label={`Play ${playlistTitle}`}
+                >
+                  <Play size={16} fill={accentTextColor} className="ml-0.5" />
+                </button>
               </div>
-            );
-          })}
-        </div>
-      </section>
+            </div>
+          );
+        })}
+      </HorizontalSlider>
 
       {/* ── Popular Albums ── */}
-      <section className="mb-14">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <h2 className="text-[26px] font-space font-bold text-txt tracking-tight">
-              Popular Albums
-            </h2>
-            <Disc size={20} style={{ color: accentColor }} className="opacity-70" />
-          </div>
-          <span
-            onClick={() => navigate('/discover/trending')}
-            className="text-sm font-bold cursor-pointer hover:underline"
-            style={{ color: accentColor }}
-          >
-            View all
-          </span>
-        </div>
-        <div className="flex gap-6 overflow-x-auto scrollbar-hide py-4 -mt-4 -mx-3 px-3">
-          {displayAlbums.map((album, i) => {
-            const albumTitle = album.title || 'Untitled Album';
-            const albumArtist = getDisplayName(album.artist, 'Artist');
-            const albumCover =
-              album.coverImage || `https://picsum.photos/seed/album${i}/300/300`;
-            const trackCount = album.songs?.length || 0;
+      <HorizontalSlider
+        title="Popular Albums"
+        icon={<Disc size={20} style={{ color: accentColor }} className="opacity-70" />}
+        accentColor={accentColor}
+        viewAllLink="/discover/trending"
+      >
+        {displayAlbums.map((album, i) => {
+          const albumTitle = album.title || 'Untitled Album';
+          const albumArtist = getDisplayName(album.artist, 'Artist');
+          const albumCover =
+            album.coverImage || `https://picsum.photos/seed/album${i}/300/300`;
+          const trackCount = album.songs?.length || 0;
 
-            return (
-              <div
-                key={album._id || i}
-                onClick={(e) => handlePlayAlbum(album, e, false)}
-                className="shrink-0 w-[190px] group cursor-pointer transition-all duration-300 hover:-translate-y-2"
-              >
-                <div className="relative w-full aspect-square rounded-[24px] overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-shadow duration-300 border border-transparent group-hover:border-brd bg-sidebar">
-                  <img
-                    src={albumCover}
-                    alt={albumTitle}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                    onError={(e) => {
-                      e.currentTarget.src = `https://picsum.photos/seed/album${i}/300/300`;
+          return (
+            <div
+              key={album._id || i}
+              onClick={(e) => handlePlayAlbum(album, e, false)}
+              className="shrink-0 w-[190px] group cursor-pointer transition-all duration-300 hover:-translate-y-2"
+            >
+              <div className="relative w-full aspect-square rounded-[24px] overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-shadow duration-300 border border-transparent group-hover:border-brd bg-sidebar">
+                <img
+                  src={albumCover}
+                  alt={albumTitle}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                  onError={(e) => {
+                    e.currentTarget.src = `https://picsum.photos/seed/album${i}/300/300`;
+                  }}
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+
+                {/* 3-dot Action Menu (appears on hover) */}
+                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                  <TrackActionMenu
+                    item={album}
+                    itemType="album"
+                    onOpenPlaylistModal={(albumItem) => {
+                      setPlaylistModalItem(albumItem);
+                      setPlaylistModalType('album');
                     }}
+                    triggerClassName="w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
                   />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
-
-                  {/* 3-dot Action Menu (appears on hover) */}
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                    <TrackActionMenu
-                      item={album}
-                      itemType="album"
-                      onOpenPlaylistModal={(albumItem) => {
-                        setPlaylistModalItem(albumItem);
-                        setPlaylistModalType('album');
-                      }}
-                      triggerClassName="w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
-                    />
-                  </div>
-
-                  <button
-                    onClick={(e) => handlePlayAlbum(album, e, true)}
-                    className="absolute bottom-4 right-4 w-12 h-12 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 ease-out shadow-lg cursor-pointer"
-                    style={{ backgroundColor: accentColor, color: accentTextColor }}
-                    aria-label={`Play album ${albumTitle}`}
-                  >
-                    <Play size={20} fill={accentTextColor} className="ml-1" />
-                  </button>
                 </div>
-                <h3 className="text-base font-bold text-txt truncate mb-0.5 group-hover:text-primary transition-colors">
-                  {albumTitle}
-                </h3>
-                <p className="text-sm font-medium text-txt-muted truncate">
-                  {albumArtist} {trackCount > 0 && `• ${trackCount} tracks`}
-                </p>
+
+                <button
+                  onClick={(e) => handlePlayAlbum(album, e, true)}
+                  className="absolute bottom-4 right-4 w-12 h-12 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 ease-out shadow-lg cursor-pointer"
+                  style={{ backgroundColor: accentColor, color: accentTextColor }}
+                  aria-label={`Play album ${albumTitle}`}
+                >
+                  <Play size={20} fill={accentTextColor} className="ml-1" />
+                </button>
               </div>
-            );
-          })}
-        </div>
-      </section>
+              <h3 className="text-base font-bold text-txt truncate mb-0.5 group-hover:text-primary transition-colors">
+                {albumTitle}
+              </h3>
+              <p className="text-sm font-medium text-txt-muted truncate">
+                {albumArtist} {trackCount > 0 && `• ${trackCount} tracks`}
+              </p>
+            </div>
+          );
+        })}
+      </HorizontalSlider>
 
       {/* ── Top Artists ── */}
-      <section className="mb-14">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <h2 className="text-[26px] font-space font-bold text-txt tracking-tight">
-              Top Artists
-            </h2>
-            <Sparkles size={20} style={{ color: accentColor }} className="opacity-70" />
-          </div>
-          <span
-            onClick={() => navigate('/discover/top-charts')}
-            className="text-sm font-bold cursor-pointer hover:underline"
-            style={{ color: accentColor }}
-          >
-            View all
-          </span>
-        </div>
-        <div className="flex gap-6 overflow-x-auto scrollbar-hide py-4 -mt-4 -mx-3 px-3">
-          {displayArtists.map((artistItem, i) => {
-            const details = artistItem.artistDetails || {};
-            const artistName = getDisplayName(details, details.username || 'Artist');
-            const artistAvatar =
-              details.profilePicture ||
-              `https://picsum.photos/seed/artist${i}/300/300`;
-            const playCount = artistItem.totalPlays;
+      <HorizontalSlider
+        title="Top Artists"
+        icon={<Sparkles size={20} style={{ color: accentColor }} className="opacity-70" />}
+        accentColor={accentColor}
+        viewAllLink="/discover/top-charts"
+      >
+        {displayArtists.map((artistItem, i) => {
+          const details = artistItem.artistDetails || {};
+          const artistName = getDisplayName(details, details.username || 'Artist');
+          const artistAvatar =
+            details.profilePicture ||
+            `https://picsum.photos/seed/artist${i}/300/300`;
+          const playCount = artistItem.totalPlays;
 
-            return (
-              <div
-                key={artistItem._id || i}
-                onClick={(e) => handleArtistClick(artistItem, e)}
-                className="shrink-0 w-[170px] group cursor-pointer transition-all duration-300 hover:-translate-y-2 flex flex-col items-center text-center"
-              >
-                <div className="relative w-[150px] h-[150px] rounded-full overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-all duration-300 border-2 border-transparent group-hover:border-brd bg-sidebar">
-                  <img
-                    src={artistAvatar}
-                    alt={artistName}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                    onError={(e) => {
-                      e.currentTarget.src = `https://picsum.photos/seed/artist${i}/300/300`;
-                    }}
-                  />
-                </div>
-                <h3 className="text-base font-bold text-txt truncate w-full group-hover:text-primary transition-colors flex items-center justify-center gap-1.5">
-                  <span className="truncate">{artistName}</span>
-                  <CheckCircle2
-                    size={14}
-                    className="shrink-0"
-                    style={{ color: accentColor }}
-                  />
-                </h3>
-                <p className="text-xs font-semibold uppercase tracking-wider text-txt-muted mt-0.5">
-                  {playCount !== undefined ? `${playCount.toLocaleString()} plays` : 'Artist'}
-                </p>
+          return (
+            <div
+              key={artistItem._id || i}
+              onClick={(e) => handleArtistClick(artistItem, e)}
+              className="shrink-0 w-[170px] group cursor-pointer transition-all duration-300 hover:-translate-y-2 flex flex-col items-center text-center"
+            >
+              <div className="relative w-[150px] h-[150px] rounded-full overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-all duration-300 border-2 border-transparent group-hover:border-brd bg-sidebar">
+                <img
+                  src={artistAvatar}
+                  alt={artistName}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                  onError={(e) => {
+                    e.currentTarget.src = `https://picsum.photos/seed/artist${i}/300/300`;
+                  }}
+                />
               </div>
-            );
-          })}
-        </div>
-      </section>
+              <h3 className="text-base font-bold text-txt truncate w-full group-hover:text-primary transition-colors flex items-center justify-center gap-1.5">
+                <span className="truncate">{artistName}</span>
+                <CheckCircle2
+                  size={14}
+                  className="shrink-0"
+                  style={{ color: accentColor }}
+                />
+              </h3>
+              <p className="text-xs font-semibold uppercase tracking-wider text-txt-muted mt-0.5">
+                {playCount !== undefined ? `${playCount.toLocaleString()} plays` : 'Artist'}
+              </p>
+            </div>
+          );
+        })}
+      </HorizontalSlider>
 
       {/* ── New Releases ── */}
-      <section className="mb-14">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <h2 className="text-[26px] font-space font-bold text-txt tracking-tight">
-              New Releases
-            </h2>
-            <span
-              className="px-2.5 py-0.5 rounded-full text-[11px] font-space font-bold uppercase tracking-wider border"
-              style={{
-                borderColor: accentColor + '60',
-                color: accentColor,
-                backgroundColor: accentColor + '15',
-              }}
-            >
-              Latest
-            </span>
-          </div>
+      <HorizontalSlider
+        title="New Releases"
+        badge={
           <span
-            onClick={() => navigate('/discover/new-releases')}
-            className="text-sm font-bold cursor-pointer hover:underline"
-            style={{ color: accentColor }}
+            className="px-2.5 py-0.5 rounded-full text-[11px] font-space font-bold uppercase tracking-wider border"
+            style={{
+              borderColor: accentColor + '60',
+              color: accentColor,
+              backgroundColor: accentColor + '15',
+            }}
           >
-            View all
+            Latest
           </span>
-        </div>
-        <div className="flex gap-6 overflow-x-auto scrollbar-hide py-4 -mt-4 -mx-3 px-3">
-          {displayReleases.map((item, i) => {
-            const releaseTitle = item.title || 'Untitled';
-            const releaseArtist = getDisplayName(item.artist, item.artistName || 'Artist');
-            const releaseCover =
-              item.coverImage || `https://picsum.photos/seed/rel${i}/300/300`;
-            const isAlbum = item.releaseType === 'album';
-            const isThisPlaying = (currentTrack?._id === item._id || (isAlbum && currentTrack?.album === item._id)) && isPlaying;
+        }
+        accentColor={accentColor}
+        viewAllLink="/discover/new-releases"
+      >
+        {displayReleases.map((item, i) => {
+          const releaseTitle = item.title || 'Untitled';
+          const releaseArtist = getDisplayName(item.artist, item.artistName || 'Artist');
+          const releaseCover =
+            item.coverImage || `https://picsum.photos/seed/rel${i}/300/300`;
+          const isAlbum = item.releaseType === 'album';
+          const isThisPlaying = (currentTrack?._id === item._id || (isAlbum && currentTrack?.album === item._id)) && isPlaying;
 
-            return (
-              <div
-                key={item._id || i}
-                onClick={(e) => handlePlayRelease(item, e, false)}
-                className="shrink-0 w-[180px] group cursor-pointer transition-all duration-300 hover:-translate-y-2"
-              >
-                <div className="relative w-full aspect-square rounded-[24px] overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-shadow duration-300 border border-transparent group-hover:border-brd bg-sidebar">
-                  <img
-                    src={releaseCover}
-                    alt={releaseTitle}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                    onError={(e) => {
-                      e.currentTarget.src = `https://picsum.photos/seed/rel${i}/300/300`;
+          return (
+            <div
+              key={item._id || i}
+              onClick={(e) => handlePlayRelease(item, e, false)}
+              className="shrink-0 w-[180px] group cursor-pointer transition-all duration-300 hover:-translate-y-2"
+            >
+              <div className="relative w-full aspect-square rounded-[24px] overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-shadow duration-300 border border-transparent group-hover:border-brd bg-sidebar">
+                <img
+                  src={releaseCover}
+                  alt={releaseTitle}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                  onError={(e) => {
+                    e.currentTarget.src = `https://picsum.photos/seed/rel${i}/300/300`;
+                  }}
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors duration-300" />
+                {isThisPlaying && (
+                  <PlayingOverlay size={28} rounded="rounded-[24px]" color={accentColor} />
+                )}
+
+                {/* Badge: Single or Album */}
+                <span className="absolute top-3 left-3 px-2 py-0.5 rounded-full text-[10px] font-space font-bold uppercase tracking-wider bg-black/60 backdrop-blur-md text-white border border-white/10 shadow-sm">
+                  {isAlbum ? 'Album' : 'Single'}
+                </span>
+
+                {/* 3-dot Action Menu (appears on hover) */}
+                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                  <TrackActionMenu
+                    item={item}
+                    itemType={isAlbum ? 'album' : 'track'}
+                    onOpenPlaylistModal={(relItem) => {
+                      setPlaylistModalItem(relItem);
+                      setPlaylistModalType(isAlbum ? 'album' : 'track');
                     }}
+                    triggerClassName="w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
                   />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors duration-300" />
-                  {isThisPlaying && (
-                    <PlayingOverlay size={28} rounded="rounded-[24px]" color={accentColor} />
-                  )}
-
-                  {/* Badge: Single or Album */}
-                  <span className="absolute top-3 left-3 px-2 py-0.5 rounded-full text-[10px] font-space font-bold uppercase tracking-wider bg-black/60 backdrop-blur-md text-white border border-white/10 shadow-sm">
-                    {isAlbum ? 'Album' : 'Single'}
-                  </span>
-
-                  {/* 3-dot Action Menu (appears on hover) */}
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
-                    <TrackActionMenu
-                      item={item}
-                      itemType={isAlbum ? 'album' : 'track'}
-                      onOpenPlaylistModal={(relItem) => {
-                        setPlaylistModalItem(relItem);
-                        setPlaylistModalType(isAlbum ? 'album' : 'track');
-                      }}
-                      triggerClassName="w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
-                    />
-                  </div>
-
-                  <button
-                    onClick={(e) => handlePlayRelease(item, e, true)}
-                    className="absolute bottom-4 right-4 w-12 h-12 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 ease-out shadow-lg cursor-pointer"
-                    style={{ backgroundColor: accentColor, color: accentTextColor }}
-                    aria-label={`Play ${releaseTitle}`}
-                  >
-                    <Play size={20} fill={accentTextColor} className="ml-1" />
-                  </button>
                 </div>
-                <h3 className="text-base font-bold text-txt truncate mb-0.5 group-hover:text-primary transition-colors">
-                  {releaseTitle}
-                </h3>
-                <p className="text-sm font-medium text-txt-muted truncate">{releaseArtist}</p>
+
+                <button
+                  onClick={(e) => handlePlayRelease(item, e, true)}
+                  className="absolute bottom-4 right-4 w-12 h-12 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 ease-out shadow-lg cursor-pointer"
+                  style={{ backgroundColor: accentColor, color: accentTextColor }}
+                  aria-label={`Play ${releaseTitle}`}
+                >
+                  <Play size={20} fill={accentTextColor} className="ml-1" />
+                </button>
               </div>
-            );
-          })}
-        </div>
-      </section>
+              <h3 className="text-base font-bold text-txt truncate mb-0.5 group-hover:text-primary transition-colors">
+                {releaseTitle}
+              </h3>
+              <p className="text-sm font-medium text-txt-muted truncate">{releaseArtist}</p>
+            </div>
+          );
+        })}
+      </HorizontalSlider>
 
       {/* ── Add to Playlist Modal ── */}
       <AddToPlaylistModal
