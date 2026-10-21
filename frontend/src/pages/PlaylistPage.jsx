@@ -21,6 +21,7 @@ import {
   useDeletePlaylistMutation,
   useRecordPlayMutation,
   useGetLikedMusicQuery,
+  useGetLikedPlaylistsQuery,
   useAddLikeMutation,
   useRemoveLikeMutation,
 } from '../store/api';
@@ -51,8 +52,14 @@ export default function PlaylistPage() {
   const [deletePlaylistMutation, { isLoading: isDeleting }] = useDeletePlaylistMutation();
   const [recordPlay] = useRecordPlayMutation();
   const { data: likedMusic = [] } = useGetLikedMusicQuery();
+  const { data: rawLikedPlaylists = [] } = useGetLikedPlaylistsQuery();
   const [addLike] = useAddLikeMutation();
   const [removeLike] = useRemoveLikeMutation();
+
+  const isPlaylistLiked = rawLikedPlaylists.some(l => {
+    const plId = l.targetId?._id || l.targetId?.id || l.targetId || l._id;
+    return String(plId) === String(id);
+  });
 
   const isOwner = playlist && user && String(playlist.owner?._id || playlist.owner) === String(user._id);
   const songs = playlist?.songs || [];
@@ -116,6 +123,20 @@ export default function PlaylistPage() {
       } else {
         await addLike({ id: trackId, targetType: 'music' }).unwrap();
         showToast(`Saved "${track.title}" to Liked Songs`, 'success');
+      }
+    } catch (err) {
+      showToast(err?.data?.message || 'Action failed', 'error');
+    }
+  };
+
+  const handleTogglePlaylistLike = async () => {
+    try {
+      if (isPlaylistLiked) {
+        await removeLike({ id, targetType: 'playlist' }).unwrap();
+        showToast(`Removed "${playlist?.name || 'playlist'}" from library`, 'info');
+      } else {
+        await addLike({ id, targetType: 'playlist' }).unwrap();
+        showToast(`Saved "${playlist?.name || 'playlist'}" to library`, 'success');
       }
     } catch (err) {
       showToast(err?.data?.message || 'Action failed', 'error');
@@ -222,6 +243,11 @@ export default function PlaylistPage() {
               <span>{songs.length} {songs.length === 1 ? 'song' : 'songs'}</span>
               <span>•</span>
               <span>{totalMinutes} min</span>
+              <span>•</span>
+              <span className="flex items-center gap-1 font-bold text-txt">
+                <Heart size={12} className={isPlaylistLiked ? 'fill-current text-red-500' : 'text-txt-sec'} />
+                {playlist.likesCount || 0} {(playlist.likesCount || 0) === 1 ? 'like' : 'likes'}
+              </span>
             </div>
           </div>
         </div>
@@ -248,6 +274,18 @@ export default function PlaylistPage() {
             title="Shuffle play"
           >
             <Shuffle size={20} />
+          </button>
+
+          {/* Like Playlist Button */}
+          <button
+            onClick={handleTogglePlaylistLike}
+            className={`w-11 h-11 rounded-full bg-sidebar border border-brd flex items-center justify-center transition-colors cursor-pointer ${
+              isPlaylistLiked ? 'text-red-500 hover:bg-elevated' : 'text-txt-sec hover:text-txt hover:bg-elevated'
+            }`}
+            title={isPlaylistLiked ? 'Remove from library' : 'Save playlist to library'}
+            aria-label={isPlaylistLiked ? 'Remove from library' : 'Save playlist to library'}
+          >
+            <Heart size={20} className={isPlaylistLiked ? 'fill-current' : ''} />
           </button>
 
           {isOwner && (
@@ -283,6 +321,11 @@ export default function PlaylistPage() {
               <Trash2 size={18} />
             </button>
           )}
+
+          <TrackActionMenu
+            itemType="playlist"
+            item={playlist}
+          />
         </div>
       </div>
 

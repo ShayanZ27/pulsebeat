@@ -550,6 +550,16 @@ const HomePage = () => {
                   <h3 className="absolute bottom-4 left-4 text-xl font-space font-black text-white leading-tight whitespace-pre-line drop-shadow-md">
                     {playlistTitle}
                   </h3>
+
+                  {/* 3-dot Action Menu (appears on hover) */}
+                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                    <TrackActionMenu
+                      item={item}
+                      itemType="playlist"
+                      triggerClassName="w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
+                    />
+                  </div>
+
                   <button
                     onClick={(e) => handlePlayPlaylist(item, e, true)}
                     className="absolute bottom-4 right-4 w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 ease-out shadow-lg cursor-pointer"

@@ -13,6 +13,7 @@ import {
   useGetUserPlaylistsQuery,
   useGetLikedMusicQuery,
   useGetLikedAlbumsQuery,
+  useGetLikedPlaylistsQuery,
   useRecordPlayMutation,
   useRemoveLikeMutation,
 } from '../store/api';
@@ -38,6 +39,7 @@ export default function LibraryPage() {
   const { data: userPlaylists = [], isLoading: loadingPlaylists } = useGetUserPlaylistsQuery();
   const { data: rawLikedSongs = [], isLoading: loadingLikes } = useGetLikedMusicQuery();
   const { data: rawLikedAlbums = [], isLoading: loadingAlbums } = useGetLikedAlbumsQuery();
+  const { data: rawLikedPlaylists = [], isLoading: loadingLikedPlaylists } = useGetLikedPlaylistsQuery();
   const [recordPlay] = useRecordPlayMutation();
   const [removeLike] = useRemoveLikeMutation();
 
@@ -49,6 +51,11 @@ export default function LibraryPage() {
   const likedAlbums = rawLikedAlbums
     .map(item => item.targetId || item)
     .filter(album => album && album._id);
+
+  const userPlaylistIds = new Set(userPlaylists.map(p => String(p._id)));
+  const likedPlaylists = rawLikedPlaylists
+    .map(item => item.targetId || item)
+    .filter(pl => pl && pl._id && !userPlaylistIds.has(String(pl._id)));
 
   const handlePlayLikedSongs = (e) => {
     if (e) e.stopPropagation();
@@ -78,9 +85,10 @@ export default function LibraryPage() {
     }
   };
 
+  const totalPlaylistsCount = userPlaylists.length + likedPlaylists.length;
   const tabs = [
     { id: 'all', label: 'All' },
-    { id: 'playlists', label: `Playlists (${userPlaylists.length})` },
+    { id: 'playlists', label: `Playlists (${totalPlaylistsCount})` },
     { id: 'songs', label: `Liked Songs (${likedSongs.length})` },
     { id: 'albums', label: `Albums (${likedAlbums.length})` },
   ];
@@ -282,7 +290,7 @@ export default function LibraryPage() {
             </div>
           )}
 
-          {/* 2. Playlists */}
+          {/* 2. User Playlists */}
           {(activeTab === 'all' || activeTab === 'playlists') &&
             userPlaylists.map((pl) => (
               <div
@@ -311,6 +319,44 @@ export default function LibraryPage() {
                 </div>
               </div>
             ))}
+
+          {/* 2b. Liked Community Playlists */}
+          {(activeTab === 'all' || activeTab === 'playlists') &&
+            likedPlaylists.map((pl) => {
+              const ownerName = pl.owner?.firstName
+                ? `${pl.owner.firstName} ${pl.owner.lastName || ''}`.trim()
+                : pl.owner?.username || 'Community';
+              return (
+                <div
+                  key={`liked-${pl._id}`}
+                  onClick={() => navigate(`/playlist/${pl._id}`)}
+                  className="group p-3.5 rounded-2xl bg-sidebar hover:bg-elevated border border-brd transition-all hover:shadow-md cursor-pointer flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="relative aspect-square rounded-xl overflow-hidden mb-3 shadow-sm bg-elevated flex items-center justify-center">
+                      {pl.coverImage ? (
+                        <img
+                          src={pl.coverImage}
+                          alt={pl.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <Music2 size={36} className="text-txt-muted opacity-50" />
+                      )}
+                      <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 backdrop-blur-md text-red-500 shadow-sm">
+                        <Heart size={12} className="fill-current" />
+                      </div>
+                    </div>
+                    <p className="text-sm font-bold text-txt truncate group-hover:text-primary transition-colors">
+                      {pl.name}
+                    </p>
+                    <p className="text-xs text-txt-sec truncate mt-0.5">
+                      Playlist • {ownerName}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
 
           {/* 3. Saved Albums */}
           {(activeTab === 'all' || activeTab === 'albums') &&
@@ -343,7 +389,7 @@ export default function LibraryPage() {
       )}
 
       {/* Empty State */}
-      {!loadingPlaylists && !loadingLikes && !loadingAlbums && userPlaylists.length === 0 && likedSongs.length === 0 && likedAlbums.length === 0 && (
+      {!loadingPlaylists && !loadingLikes && !loadingAlbums && !loadingLikedPlaylists && userPlaylists.length === 0 && likedPlaylists.length === 0 && likedSongs.length === 0 && likedAlbums.length === 0 && (
         <div className="text-center py-16 bg-sidebar rounded-3xl border border-brd p-8 max-w-md mx-auto space-y-3">
           <LibraryIcon size={44} className="mx-auto text-txt-muted opacity-40" />
           <h3 className="text-lg font-playfair font-bold text-txt">Your Library is empty</h3>

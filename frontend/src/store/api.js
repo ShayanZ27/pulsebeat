@@ -144,11 +144,25 @@ export const pulsebeatApi = createApi({
     }),
     addLike: build.mutation({
       queryFn: fromService(likeService.addLike),
-      invalidatesTags: ['LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'ActivityFeed'],
+      invalidatesTags: (result, error, arg) => {
+        const id = arg?.id || arg?.targetId;
+        const targetType = arg?.targetType;
+        const tags = ['LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'ActivityFeed'];
+        if (targetType === 'playlist' && id) tags.push({ type: 'Playlist', id });
+        if (targetType === 'album' && id) tags.push({ type: 'Album', id });
+        return tags;
+      },
     }),
     removeLike: build.mutation({
       queryFn: fromService(likeService.removeLike),
-      invalidatesTags: ['LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'ActivityFeed'],
+      invalidatesTags: (result, error, arg) => {
+        const id = arg?.id || arg?.targetId;
+        const targetType = arg?.targetType;
+        const tags = ['LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'ActivityFeed'];
+        if (targetType === 'playlist' && id) tags.push({ type: 'Playlist', id });
+        if (targetType === 'album' && id) tags.push({ type: 'Album', id });
+        return tags;
+      },
     }),
 
     /* ── Search ── */
