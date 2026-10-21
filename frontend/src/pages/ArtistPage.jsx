@@ -27,7 +27,7 @@ import { selectAccentColor, selectAccentTextColor } from '../store/themeSlice';
 import TrackActionMenu from '../components/common/TrackActionMenu';
 import AddToPlaylistModal from '../components/common/AddToPlaylistModal';
 import ReportModal from '../components/common/ReportModal';
-import { PlayingOverlay, PlayingHeartbeat } from '../components/common/PulseAnimations';
+import { PlayingOverlay } from '../components/common/PulseAnimations';
 import { formatTime } from '../utils/format';
 import { showToast } from '../utils/toast';
 
@@ -214,12 +214,13 @@ export default function ArtistPage() {
                     }`}
                   >
                     <div className="col-span-1 flex items-center justify-center">
-                      <span className="group-hover:hidden text-xs font-space font-bold text-txt-muted flex items-center justify-center">
-                        {isThisPlaying ? (
-                          <PlayingHeartbeat size={15} color={accentColor} />
-                        ) : (
-                          idx + 1
-                        )}
+                      <span
+                        className={`group-hover:hidden text-xs font-space font-bold ${
+                          isThisPlaying ? 'text-primary' : 'text-txt-muted'
+                        } flex items-center justify-center`}
+                        style={isThisPlaying ? { color: accentColor } : undefined}
+                      >
+                        {idx + 1}
                       </span>
                       <Play size={16} className="hidden group-hover:block fill-current" style={{ color: accentColor }} />
                     </div>

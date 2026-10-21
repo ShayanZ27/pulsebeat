@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import {
@@ -13,10 +13,18 @@ import {
   Disc,
   ArrowLeft,
   Shuffle,
+  Users,
+  ListMusic,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  Crown,
 } from 'lucide-react';
 import {
   useGetTrendingMusicQuery,
   useGetTrendingAlbumsQuery,
+  useGetTrendingArtistsQuery,
+  useGetCommunityPlaylistsQuery,
   useGetLatestReleasesQuery,
   useGetAllMusicQuery,
   useRecordPlayMutation,
@@ -25,9 +33,66 @@ import { playSingleTrack, playTracks, selectCurrentTrack, selectIsPlaying } from
 import { selectAccentColor, selectAccentTextColor } from '../store/themeSlice';
 import TrackActionMenu from '../components/common/TrackActionMenu';
 import AddToPlaylistModal from '../components/common/AddToPlaylistModal';
-import { PlayingOverlay, PlayingHeartbeat } from '../components/common/PulseAnimations';
-import { formatTime } from '../utils/format';
+import { PlayingOverlay } from '../components/common/PulseAnimations';
+import { formatTime, getDisplayName, getInitials } from '../utils/format';
 import CategoryIcon from '../components/common/CategoryIcon';
+import HorizontalSlider from '../components/common/HorizontalSlider';
+
+// Helper to chunk arrays into columns of 4 for 4-row horizontal scrolling
+function chunkIntoColumns(arr, chunkSize = 4) {
+  if (!Array.isArray(arr) || arr.length === 0) return [];
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += chunkSize) {
+    chunks.push(arr.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+function formatPlays(num) {
+  if (!num) return '0 plays';
+  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}bn plays`;
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}m plays`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}k plays`;
+  return `${num} plays`;
+}
+
+// Reusable pagination bar for 15-item paged lists
+function PaginationBar({ currentPage, totalPages, totalItems, limit = 15, onPageChange }) {
+  if (!totalItems || totalPages <= 1) return null;
+  const startItem = (currentPage - 1) * limit + 1;
+  const endItem = Math.min(currentPage * limit, totalItems);
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 pb-2 border-t border-brd font-space text-xs">
+      <span className="text-txt-muted">
+        Showing <span className="text-txt font-bold">{startItem}</span> – <span className="text-txt font-bold">{endItem}</span> of <span className="text-txt font-bold">{totalItems}</span>
+      </span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+          disabled={currentPage <= 1}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sidebar hover:bg-elevated border border-brd text-txt disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+          aria-label="Previous page"
+        >
+          <ChevronLeft size={16} /> Previous
+        </button>
+        <span className="px-3.5 py-2 rounded-xl bg-sidebar border border-brd text-txt-sec shadow-sm">
+          Page <strong className="text-txt">{currentPage}</strong> of <strong className="text-txt">{totalPages}</strong>
+        </span>
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+          disabled={currentPage >= totalPages}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sidebar hover:bg-elevated border border-brd text-txt disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+          aria-label="Next page"
+        >
+          Next <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const GENRE_CARDS = [
   {
@@ -172,10 +237,87 @@ export default function DiscoverPage() {
   const [playlistModalItem, setPlaylistModalItem] = useState(null);
   const [playlistModalType, setPlaylistModalType] = useState('track');
 
-  const { data: trendingTracks = [], isLoading: loadingTrending } = useGetTrendingMusicQuery(30);
-  const { data: trendingAlbums = [], isLoading: loadingAlbums } = useGetTrendingAlbumsQuery(20);
-  const { data: latestReleases = [], isLoading: loadingReleases } = useGetLatestReleasesQuery(30);
+  // Top Charts Sub-Tabs State (sync with ?tab= search param)
+  const initialChartsTab = searchParams.get('tab');
+  const validChartsTabs = ['tracks', 'albums', 'artists', 'playlists'];
+  const [chartsTab, setChartsTab] = useState(
+    validChartsTabs.includes(initialChartsTab) ? initialChartsTab : 'tracks'
+  );
 
+  useEffect(() => {
+    if (section === 'top-charts') {
+      const urlTab = searchParams.get('tab');
+      if (urlTab && validChartsTabs.includes(urlTab)) {
+        if (urlTab !== chartsTab) {
+          setChartsTab(urlTab);
+        }
+      } else if (!urlTab && chartsTab !== 'tracks') {
+        setChartsTab('tracks');
+      }
+    }
+  }, [searchParams, section]);
+
+  const [tracksPage, setTracksPage] = useState(1);
+  const [albumsPage, setAlbumsPage] = useState(1);
+  const [artistsPage, setArtistsPage] = useState(1);
+  const [playlistsPage, setPlaylistsPage] = useState(1);
+
+  // New Releases Page State
+  const [releasesPage, setReleasesPage] = useState(1);
+
+  // 1. Trending Queries (capped at 16 items for 4 x n tiles)
+  const { data: trendingMusicData, isLoading: loadingTrendingTracks } = useGetTrendingMusicQuery(16, {
+    skip: section !== 'trending',
+  });
+  const { data: trendingAlbumsData, isLoading: loadingTrendingAlbums } = useGetTrendingAlbumsQuery(16, {
+    skip: section !== 'trending',
+  });
+  const { data: trendingPlaylistsData, isLoading: loadingTrendingPlaylists } = useGetCommunityPlaylistsQuery(16, {
+    skip: section !== 'trending',
+  });
+
+  const trendingTracks = Array.isArray(trendingMusicData) ? trendingMusicData : trendingMusicData?.items || [];
+  const trendingAlbums = Array.isArray(trendingAlbumsData) ? trendingAlbumsData : trendingAlbumsData?.items || [];
+  const trendingPlaylists = Array.isArray(trendingPlaylistsData) ? trendingPlaylistsData : trendingPlaylistsData?.items || [];
+
+  // 2. New Releases Query (15 items per page)
+  const { data: releasesResp, isLoading: loadingReleases } = useGetLatestReleasesQuery(
+    { page: releasesPage, limit: 15 },
+    { skip: section !== 'new-releases' }
+  );
+  const latestReleases = Array.isArray(releasesResp) ? releasesResp : releasesResp?.items || [];
+  const releasesPagination = releasesResp?.pagination || { page: releasesPage, limit: 15, total: latestReleases.length, totalPages: 1 };
+
+  // 3. Top Charts Queries (15 items per page, per sub-tab)
+  const { data: chartTracksResp, isLoading: loadingChartTracks } = useGetTrendingMusicQuery(
+    { page: tracksPage, limit: 15 },
+    { skip: section !== 'top-charts' || chartsTab !== 'tracks' }
+  );
+  const chartTracks = Array.isArray(chartTracksResp) ? chartTracksResp : chartTracksResp?.items || [];
+  const tracksPagination = chartTracksResp?.pagination || { page: tracksPage, limit: 15, total: chartTracks.length, totalPages: 1 };
+
+  const { data: chartAlbumsResp, isLoading: loadingChartAlbums } = useGetTrendingAlbumsQuery(
+    { page: albumsPage, limit: 15 },
+    { skip: section !== 'top-charts' || chartsTab !== 'albums' }
+  );
+  const chartAlbums = Array.isArray(chartAlbumsResp) ? chartAlbumsResp : chartAlbumsResp?.items || [];
+  const albumsPagination = chartAlbumsResp?.pagination || { page: albumsPage, limit: 15, total: chartAlbums.length, totalPages: 1 };
+
+  const { data: chartArtistsResp, isLoading: loadingChartArtists } = useGetTrendingArtistsQuery(
+    { page: artistsPage, limit: 15 },
+    { skip: section !== 'top-charts' || chartsTab !== 'artists' }
+  );
+  const chartArtists = Array.isArray(chartArtistsResp) ? chartArtistsResp : chartArtistsResp?.items || [];
+  const artistsPagination = chartArtistsResp?.pagination || { page: artistsPage, limit: 15, total: chartArtists.length, totalPages: 1 };
+
+  const { data: chartPlaylistsResp, isLoading: loadingChartPlaylists } = useGetCommunityPlaylistsQuery(
+    { page: playlistsPage, limit: 15 },
+    { skip: section !== 'top-charts' || chartsTab !== 'playlists' }
+  );
+  const chartPlaylists = Array.isArray(chartPlaylistsResp) ? chartPlaylistsResp : chartPlaylistsResp?.items || [];
+  const playlistsPagination = chartPlaylistsResp?.pagination || { page: playlistsPage, limit: 15, total: chartPlaylists.length, totalPages: 1 };
+
+  // 4. Genres Query
   const {
     data: categorySongs = [],
     isLoading: loadingCategorySongs,
@@ -203,6 +345,13 @@ export default function DiscoverPage() {
     { id: 'new-releases', label: 'New Releases', icon: Star, path: '/discover/new-releases' },
     { id: 'top-charts', label: 'Top Charts', icon: BarChart3, path: '/discover/top-charts' },
     { id: 'genres', label: 'Genres & Moods', icon: Headphones, path: '/discover/genres' },
+  ];
+
+  const chartSubTabs = [
+    { id: 'tracks', label: 'Tracks', icon: Music2, total: tracksPagination.total },
+    { id: 'albums', label: 'Albums', icon: Disc, total: albumsPagination.total },
+    { id: 'artists', label: 'Artists', icon: Users, total: artistsPagination.total },
+    { id: 'playlists', label: 'Playlists', icon: ListMusic, total: playlistsPagination.total },
   ];
 
   return (
@@ -253,183 +402,293 @@ export default function DiscoverPage() {
 
       {/* ─── SECTION CONTENT ─── */}
 
-      {/* 1. TRENDING */}
+      {/* 1. TRENDING (4 rows x n columns horizontal rectangle tiles with horizontal scroller) */}
       {section === 'trending' && (
-        <div className="space-y-8">
-          {/* Trending Tracks */}
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Flame size={20} style={{ color: accentColor }} />
-                <h2 className="text-xl md:text-2xl font-playfair font-black text-txt">Trending Songs</h2>
-              </div>
-              <span className="text-xs text-txt-muted font-space">Top tracks moving up the pulse</span>
-            </div>
-
-            {loadingTrending ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="h-16 rounded-2xl bg-sidebar border border-brd animate-pulse" />
-                ))}
+        <div className="space-y-10">
+          {/* Section 1A: Trending Tracks */}
+          <div>
+            {loadingTrendingTracks ? (
+              <div className="space-y-4">
+                <div className="h-8 w-48 bg-sidebar rounded-lg animate-pulse" />
+                <div className="flex gap-4 overflow-hidden py-2">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="flex flex-col gap-2.5 w-[310px] sm:w-[360px] md:w-[400px] shrink-0">
+                      {[...Array(4)].map((_, j) => (
+                        <div key={j} className="h-16 rounded-2xl bg-sidebar border border-brd/40 animate-pulse" />
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : trendingTracks.length === 0 ? (
               <div className="text-center py-12 bg-sidebar rounded-2xl border border-brd text-txt-muted text-sm">
                 No trending tracks available right now.
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {trendingTracks.map((song, idx) => {
-                  const isThisPlaying = currentTrack?._id === song._id && isPlaying;
-                  return (
-                    <div
-                      key={song._id || idx}
-                      onClick={() => handlePlaySong(song, trendingTracks, idx)}
-                      className="group flex items-center justify-between p-3 rounded-2xl bg-sidebar hover:bg-elevated border border-brd transition-all hover:shadow-md cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 shadow-sm bg-elevated">
-                          <img
-                            src={song.coverImage || 'https://picsum.photos/seed/track/100/100'}
-                            alt={song.title}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
-                          {isThisPlaying ? (
-                            <PlayingOverlay size={20} rounded="rounded-xl" color={accentColor} />
-                          ) : (
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <Play size={18} className="text-white fill-white" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p
-                            className="text-sm font-bold truncate group-hover:text-primary transition-colors"
-                            style={isThisPlaying ? { color: accentColor } : undefined}
-                          >
-                            {song.title}
-                          </p>
-                          <p className="text-xs text-txt-sec truncate">
-                            {song.artist?.firstName
-                              ? `${song.artist.firstName} ${song.artist.lastName || ''}`.trim()
-                              : song.artist?.username || 'Unknown Artist'}
-                          </p>
-                        </div>
-                      </div>
+              <HorizontalSlider
+                title="Trending Songs"
+                icon={<Flame size={24} style={{ color: accentColor }} />}
+                badge={<span className="text-xs text-txt-muted font-space">Top tracks moving up the pulse</span>}
+                accentColor={accentColor}
+                itemGap="gap-4"
+                className="mb-0"
+              >
+                {chunkIntoColumns(trendingTracks.slice(0, 16), 4).map((col, colIdx) => (
+                  <div
+                    key={colIdx}
+                    className="flex flex-col gap-2.5 w-[310px] sm:w-[360px] md:w-[400px] lg:w-[430px] shrink-0"
+                  >
+                    {col.map((song, itemIdx) => {
+                      const globalIdx = colIdx * 4 + itemIdx;
+                      const isThisPlaying = currentTrack?._id === song._id && isPlaying;
+                      const trackArtist = song.artist?.firstName
+                        ? `${song.artist.firstName} ${song.artist.lastName || ''}`.trim()
+                        : song.artist?.username || 'PulseBeat Artist';
+                      const albumTitle = song.album?.title || '';
 
-                      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <span className="text-xs text-txt-muted font-space hidden sm:inline">
-                          {formatTime(song.duration)}
-                        </span>
-                        <TrackActionMenu
-                          item={song}
-                          itemType="track"
-                          onOpenPlaylistModal={(trackItem) => {
-                            setPlaylistModalItem(trackItem);
-                            setPlaylistModalType('track');
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
-          {/* Trending Albums */}
-          {trendingAlbums.length > 0 && (
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Disc size={20} style={{ color: accentColor }} />
-                  <h2 className="text-xl md:text-2xl font-playfair font-black text-txt">Popular Albums</h2>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {trendingAlbums.map((album) => {
-                  const albumTitle = album.title || 'Untitled Album';
-                  const albumArtist = album.artist?.firstName
-                    ? `${album.artist.firstName} ${album.artist.lastName || ''}`.trim()
-                    : album.artist?.username || 'PulseBeat Artist';
-                  const albumCover = album.coverImage || 'https://picsum.photos/seed/album/300/300';
-
-                  return (
-                    <div
-                      key={album._id}
-                      onClick={() => navigate(`/album/${album._id}`)}
-                      className="group p-3.5 rounded-2xl bg-sidebar hover:bg-elevated border border-brd transition-all hover:shadow-lg cursor-pointer flex flex-col relative"
-                    >
-                      <div className="relative aspect-square rounded-xl overflow-hidden mb-3 shadow-sm">
-                        <img
-                          src={albumCover}
-                          alt={albumTitle}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        {/* 3-dot Action Menu */}
+                      return (
                         <div
-                          className="absolute top-2 right-2 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity z-20"
-                          onClick={(e) => e.stopPropagation()}
+                          key={song._id || globalIdx}
+                          onClick={() => handlePlaySong(song, trendingTracks, globalIdx)}
+                          className="group flex items-center justify-between p-2 rounded-2xl bg-sidebar hover:bg-elevated border border-brd/50 hover:border-brd transition-all hover:shadow-md cursor-pointer gap-3 relative select-none"
                         >
-                          <TrackActionMenu
-                            item={album}
-                            itemType="album"
-                            onOpenPlaylistModal={(modalItem) => {
-                              setPlaylistModalItem(modalItem);
-                              setPlaylistModalType('album');
-                            }}
-                            triggerClassName="w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
-                            buttonSize={30}
-                            iconSize={15}
-                          />
-                        </div>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 shadow-xs bg-elevated border border-brd/30">
+                              <img
+                                src={song.coverImage || 'https://picsum.photos/seed/track/100/100'}
+                                alt={song.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              />
+                              {isThisPlaying ? (
+                                <PlayingOverlay size={20} rounded="rounded-xl" color={accentColor} />
+                              ) : (
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Play size={16} className="text-white fill-white ml-0.5" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p
+                                className="text-sm font-bold text-txt truncate group-hover:text-primary transition-colors"
+                                style={isThisPlaying ? { color: accentColor } : undefined}
+                              >
+                                {song.title}
+                              </p>
+                              <p className="text-xs text-txt-sec truncate mt-0.5">
+                                {trackArtist} • {formatPlays(song.plays)}
+                                {albumTitle ? ` • ${albumTitle}` : ''}
+                              </p>
+                            </div>
+                          </div>
 
-                        {/* Hover Play Button */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (album.songs?.length) {
-                              dispatch(playTracks(album.songs, 0));
-                            } else {
-                              navigate(`/album/${album._id}`);
-                            }
-                          }}
-                          className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-200 shadow-xl cursor-pointer z-10 hover:scale-110 active:scale-95"
-                          style={{ backgroundColor: accentColor, color: accentTextColor }}
-                          aria-label={`Play ${albumTitle}`}
+                          <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-xs font-space text-txt-muted hidden sm:inline mr-1">
+                              {formatTime(song.duration)}
+                            </span>
+                            <TrackActionMenu
+                              item={song}
+                              itemType="track"
+                              onOpenPlaylistModal={(trackItem) => {
+                                setPlaylistModalItem(trackItem);
+                                setPlaylistModalType('track');
+                              }}
+                              triggerClassName="w-8 h-8 rounded-full hover:bg-elevated/80 text-txt-muted hover:text-txt flex items-center justify-center transition-all opacity-80 sm:opacity-0 group-hover:opacity-100"
+                              buttonSize={28}
+                              iconSize={15}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </HorizontalSlider>
+            )}
+          </div>
+
+          {/* Section 1B: Trending Albums */}
+          {trendingAlbums.length > 0 && (
+            <div>
+              <HorizontalSlider
+                title="Popular Albums"
+                icon={<Disc size={24} style={{ color: accentColor }} />}
+                badge={<span className="text-xs text-txt-muted font-space">Top albums streamed across the catalog</span>}
+                accentColor={accentColor}
+                itemGap="gap-4"
+                className="mb-0"
+              >
+                {chunkIntoColumns(trendingAlbums.slice(0, 16), 4).map((col, colIdx) => (
+                  <div
+                    key={colIdx}
+                    className="flex flex-col gap-2.5 w-[310px] sm:w-[360px] md:w-[400px] lg:w-[430px] shrink-0"
+                  >
+                    {col.map((album, itemIdx) => {
+                      const globalIdx = colIdx * 4 + itemIdx;
+                      const albumTitle = album.title || 'Untitled Album';
+                      const albumArtist = album.artist?.firstName
+                        ? `${album.artist.firstName} ${album.artist.lastName || ''}`.trim()
+                        : album.artist?.username || 'PulseBeat Artist';
+                      const albumCover = album.coverImage || 'https://picsum.photos/seed/album/100/100';
+
+                      return (
+                        <div
+                          key={album._id || globalIdx}
+                          onClick={() => navigate(`/album/${album._id}`)}
+                          className="group flex items-center justify-between p-2 rounded-2xl bg-sidebar hover:bg-elevated border border-brd/50 hover:border-brd transition-all hover:shadow-md cursor-pointer gap-3 relative select-none"
                         >
-                          <Play size={16} fill="currentColor" className="ml-0.5" />
-                        </button>
-                      </div>
-                      <p className="text-sm font-bold text-txt truncate group-hover:text-primary transition-colors">
-                        {albumTitle}
-                      </p>
-                      <p className="text-xs text-txt-sec truncate mt-0.5">
-                        {albumArtist}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 shadow-xs bg-elevated border border-brd/30"
+                              onClick={(e) => {
+                                if (album.songs?.length) {
+                                  e.stopPropagation();
+                                  dispatch(playTracks(album.songs, 0));
+                                }
+                              }}
+                            >
+                              <img
+                                src={albumCover}
+                                alt={albumTitle}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Play size={16} className="text-white fill-white ml-0.5" />
+                              </div>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-txt truncate group-hover:text-primary transition-colors">
+                                {albumTitle}
+                              </p>
+                              <p className="text-xs text-txt-sec truncate mt-0.5">
+                                {albumArtist} • {formatPlays(album.plays)} • {album.songs?.length || 0} tracks
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <TrackActionMenu
+                              item={album}
+                              itemType="album"
+                              onOpenPlaylistModal={(modalItem) => {
+                                setPlaylistModalItem(modalItem);
+                                setPlaylistModalType('album');
+                              }}
+                              triggerClassName="w-8 h-8 rounded-full hover:bg-elevated/80 text-txt-muted hover:text-txt flex items-center justify-center transition-all opacity-80 sm:opacity-0 group-hover:opacity-100"
+                              buttonSize={28}
+                              iconSize={15}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </HorizontalSlider>
+            </div>
+          )}
+
+          {/* Section 1C: Trending Playlists */}
+          {trendingPlaylists.length > 0 && (
+            <div>
+              <HorizontalSlider
+                title="Community Playlists"
+                icon={<ListMusic size={24} style={{ color: accentColor }} />}
+                badge={<span className="text-xs text-txt-muted font-space">Top curated sets from the PulseBeat community</span>}
+                accentColor={accentColor}
+                itemGap="gap-4"
+                className="mb-0"
+              >
+                {chunkIntoColumns(trendingPlaylists.slice(0, 16), 4).map((col, colIdx) => (
+                  <div
+                    key={colIdx}
+                    className="flex flex-col gap-2.5 w-[310px] sm:w-[360px] md:w-[400px] lg:w-[430px] shrink-0"
+                  >
+                    {col.map((playlist, itemIdx) => {
+                      const globalIdx = colIdx * 4 + itemIdx;
+                      const playlistTitle = playlist.name || 'Untitled Playlist';
+                      const playlistOwner = playlist.owner?.username || 'Community';
+                      const playlistCover = playlist.coverImage || 'https://picsum.photos/seed/playlist/100/100';
+
+                      return (
+                        <div
+                          key={playlist._id || globalIdx}
+                          onClick={() => navigate(`/playlist/${playlist._id}`)}
+                          className="group flex items-center justify-between p-2 rounded-2xl bg-sidebar hover:bg-elevated border border-brd/50 hover:border-brd transition-all hover:shadow-md cursor-pointer gap-3 relative select-none"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className="relative w-12 h-12 rounded-xl overflow-hidden shrink-0 shadow-xs bg-elevated border border-brd/30"
+                              onClick={(e) => {
+                                if (playlist.songs?.length) {
+                                  e.stopPropagation();
+                                  dispatch(playTracks(playlist.songs, 0));
+                                }
+                              }}
+                            >
+                              <img
+                                src={playlistCover}
+                                alt={playlistTitle}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Play size={16} className="text-white fill-white ml-0.5" />
+                              </div>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-txt truncate group-hover:text-primary transition-colors">
+                                {playlistTitle}
+                              </p>
+                              <p className="text-xs text-txt-sec truncate mt-0.5">
+                                By @{playlistOwner} • {playlist.songs?.length || 0} tracks • {(playlist.likesCount || 0).toLocaleString()} likes
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <TrackActionMenu
+                              item={playlist}
+                              itemType="playlist"
+                              triggerClassName="w-8 h-8 rounded-full hover:bg-elevated/80 text-txt-muted hover:text-txt flex items-center justify-center transition-all opacity-80 sm:opacity-0 group-hover:opacity-100"
+                              buttonSize={28}
+                              iconSize={15}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </HorizontalSlider>
+            </div>
           )}
         </div>
       )}
 
-      {/* 2. NEW RELEASES */}
+      {/* 2. NEW RELEASES (15 cards per page with pagination, preserving card design) */}
       {section === 'new-releases' && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Star size={20} style={{ color: accentColor }} />
-            <h2 className="text-xl md:text-2xl font-playfair font-black text-txt">Fresh Releases</h2>
+        <section className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <Star size={22} style={{ color: accentColor }} />
+              <div>
+                <h2 className="text-xl md:text-2xl font-playfair font-black text-txt">Fresh Releases</h2>
+                <p className="text-xs text-txt-muted font-space">The newest tracks and albums dropped on PulseBeat</p>
+              </div>
+            </div>
+            <span className="text-xs font-space text-txt-sec">
+              {releasesPagination.total} total releases
+            </span>
           </div>
 
           {loadingReleases ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {[...Array(10)].map((_, i) => (
+              {[...Array(15)].map((_, i) => (
                 <div key={i} className="aspect-square rounded-2xl bg-sidebar border border-brd animate-pulse" />
               ))}
+            </div>
+          ) : latestReleases.length === 0 ? (
+            <div className="text-center py-16 bg-sidebar rounded-2xl border border-brd text-txt-muted text-sm">
+              No releases found on this page.
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -532,83 +791,465 @@ export default function DiscoverPage() {
               })}
             </div>
           )}
+
+          {/* Pagination Bar */}
+          <PaginationBar
+            currentPage={releasesPage}
+            totalPages={releasesPagination.totalPages}
+            totalItems={releasesPagination.total}
+            limit={15}
+            onPageChange={(p) => setReleasesPage(p)}
+          />
         </section>
       )}
 
-      {/* 3. TOP CHARTS */}
+      {/* 3. TOP CHARTS (4 Sub-Tabs: Tracks, Albums, Artists, Playlists with 15/page Flatlists & Pagination) */}
       {section === 'top-charts' && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-            <BarChart3 size={20} style={{ color: accentColor }} />
-            <h2 className="text-xl md:text-2xl font-playfair font-black text-txt">PulseBeat Top Charts</h2>
-          </div>
-
-          <div className="bg-sidebar rounded-2xl border border-brd overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-brd grid grid-cols-12 text-xs font-space font-bold uppercase tracking-wider text-txt-muted">
-              <span className="col-span-1 text-center">#</span>
-              <span className="col-span-6 md:col-span-7">Title</span>
-              <span className="col-span-3 md:col-span-2 text-right">Plays</span>
-              <span className="col-span-2 text-right pr-2">Duration</span>
+        <section className="space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <BarChart3 size={22} style={{ color: accentColor }} />
+              <div>
+                <h2 className="text-xl md:text-2xl font-playfair font-black text-txt">Top Charts</h2>
+                <p className="text-xs text-txt-muted font-space">Real-time rankings across songs, records, creators, and sets</p>
+              </div>
             </div>
 
-            <div className="divide-y divide-brd/50">
-              {trendingTracks.slice(0, 25).map((song, i) => {
-                const isThisPlaying = currentTrack?._id === song._id && isPlaying;
+            {/* Sub-Tabs Pills */}
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-sidebar border border-brd shrink-0">
+              {chartSubTabs.map((ct) => {
+                const Icon = ct.icon;
+                const isActive = chartsTab === ct.id;
                 return (
-                  <div
-                    key={song._id || i}
-                    onClick={() => handlePlaySong(song, trendingTracks, i)}
-                    className="grid grid-cols-12 items-center p-3.5 hover:bg-elevated transition-colors cursor-pointer group"
+                  <button
+                    key={ct.id}
+                    type="button"
+                    onClick={() => {
+                      setChartsTab(ct.id);
+                      setSearchParams((prev) => {
+                        const next = new URLSearchParams(prev);
+                        next.set('tab', ct.id);
+                        return next;
+                      }, { replace: true });
+                    }}
+                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-space font-bold transition-all cursor-pointer ${
+                      isActive
+                        ? 'shadow-sm'
+                        : 'text-txt-sec hover:text-txt hover:bg-elevated'
+                    }`}
+                    style={
+                      isActive
+                        ? { backgroundColor: accentColor, color: accentTextColor }
+                        : undefined
+                    }
                   >
-                    <span className={`col-span-1 text-center font-space font-black text-sm ${i < 3 ? 'text-primary' : 'text-txt-muted'}`} style={i < 3 ? { color: accentColor } : undefined}>
-                      {i + 1}
-                    </span>
-                    <div className="col-span-6 md:col-span-7 flex items-center gap-3 min-w-0 pr-2">
-                      <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 shadow-sm bg-elevated">
-                        <img
-                          src={song.coverImage || 'https://picsum.photos/seed/track/80/80'}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                        {isThisPlaying && (
-                          <PlayingOverlay size={16} rounded="rounded-lg" color={accentColor} />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p
-                          className="text-sm font-bold truncate group-hover:text-primary transition-colors"
-                          style={isThisPlaying ? { color: accentColor } : undefined}
-                        >
-                          {song.title}
-                        </p>
-                        <p className="text-xs text-txt-sec truncate">
-                          {song.artist?.firstName
-                            ? `${song.artist.firstName} ${song.artist.lastName || ''}`.trim()
-                            : song.artist?.username || 'Artist'}
-                        </p>
-                      </div>
-                    </div>
-                  <span className="col-span-3 md:col-span-2 text-right text-xs font-space text-txt-sec">
-                    {(song.plays || 0).toLocaleString()}
-                  </span>
-                  <div className="col-span-2 flex items-center justify-end gap-2 pr-2" onClick={(e) => e.stopPropagation()}>
-                    <span className="text-xs font-space text-txt-muted">
-                      {formatTime(song.duration)}
-                    </span>
-                    <TrackActionMenu
-                      item={song}
-                      itemType="track"
-                      onOpenPlaylistModal={(trackItem) => {
-                        setPlaylistModalItem(trackItem);
-                        setPlaylistModalType('track');
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                    <Icon size={14} />
+                    <span>{ct.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          {/* Sub-Tab 3A: TRACKS FLATLIST */}
+          {chartsTab === 'tracks' && (
+            <div className="space-y-4">
+              <div className="bg-sidebar rounded-2xl border border-brd overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-brd grid grid-cols-12 text-xs font-space font-bold uppercase tracking-wider text-txt-muted">
+                  <span className="col-span-1 text-center">#</span>
+                  <span className="col-span-6 md:col-span-7">Title</span>
+                  <span className="col-span-3 md:col-span-2 text-right">Plays</span>
+                  <span className="col-span-2 text-right pr-2">Duration</span>
+                </div>
+
+                {loadingChartTracks ? (
+                  <div className="p-4 space-y-3">
+                    {[...Array(8)].map((_, i) => (
+                      <div key={i} className="h-14 rounded-xl bg-elevated/60 animate-pulse border border-brd/40" />
+                    ))}
+                  </div>
+                ) : chartTracks.length === 0 ? (
+                  <div className="py-16 text-center text-txt-muted text-sm">
+                    No chart tracks available.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-brd/50">
+                    {chartTracks.map((song, i) => {
+                      const isThisPlaying = currentTrack?._id === song._id && isPlaying;
+                      const globalRank = (tracksPage - 1) * 15 + i + 1;
+                      const isTopThree = globalRank <= 3;
+
+                      return (
+                        <div
+                          key={song._id || i}
+                          onClick={() => handlePlaySong(song, chartTracks, i)}
+                          className="grid grid-cols-12 items-center p-3.5 hover:bg-elevated transition-colors cursor-pointer group"
+                        >
+                          <span
+                            className={`col-span-1 text-center font-space font-black text-sm flex items-center justify-center gap-1 ${
+                              isTopThree ? 'text-primary' : 'text-txt-muted'
+                            }`}
+                            style={isTopThree ? { color: accentColor } : undefined}
+                          >
+                            {isTopThree && <Crown size={12} className="hidden sm:inline" />}
+                            {globalRank}
+                          </span>
+                          <div className="col-span-6 md:col-span-7 flex items-center gap-3 min-w-0 pr-2">
+                            <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 shadow-sm bg-elevated">
+                              <img
+                                src={song.coverImage || 'https://picsum.photos/seed/track/80/80'}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
+                              {isThisPlaying && (
+                                <PlayingOverlay size={16} rounded="rounded-lg" color={accentColor} />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p
+                                className="text-sm font-bold truncate group-hover:text-primary transition-colors"
+                                style={isThisPlaying ? { color: accentColor } : undefined}
+                              >
+                                {song.title}
+                              </p>
+                              <p className="text-xs text-txt-sec truncate">
+                                {song.artist?.firstName
+                                  ? `${song.artist.firstName} ${song.artist.lastName || ''}`.trim()
+                                  : song.artist?.username || 'Artist'}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="col-span-3 md:col-span-2 text-right text-xs font-space text-txt-sec">
+                            {(song.plays || 0).toLocaleString()}
+                          </span>
+                          <div className="col-span-2 flex items-center justify-end gap-2 pr-2" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-xs font-space text-txt-muted">
+                              {formatTime(song.duration)}
+                            </span>
+                            <TrackActionMenu
+                              item={song}
+                              itemType="track"
+                              onOpenPlaylistModal={(trackItem) => {
+                                setPlaylistModalItem(trackItem);
+                                setPlaylistModalType('track');
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Tracks Pagination Bar */}
+              <PaginationBar
+                currentPage={tracksPage}
+                totalPages={tracksPagination.totalPages}
+                totalItems={tracksPagination.total}
+                limit={15}
+                onPageChange={(p) => setTracksPage(p)}
+              />
+            </div>
+          )}
+
+          {/* Sub-Tab 3B: ALBUMS FLATLIST */}
+          {chartsTab === 'albums' && (
+            <div className="space-y-4">
+              <div className="bg-sidebar rounded-2xl border border-brd overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-brd grid grid-cols-12 text-xs font-space font-bold uppercase tracking-wider text-txt-muted">
+                  <span className="col-span-1 text-center">#</span>
+                  <span className="col-span-6 md:col-span-6">Album</span>
+                  <span className="col-span-2 text-right hidden sm:block">Tracks</span>
+                  <span className="col-span-3 md:col-span-2 text-right">Plays</span>
+                  <span className="col-span-2 md:col-span-1 text-right pr-2">Action</span>
+                </div>
+
+                {loadingChartAlbums ? (
+                  <div className="p-4 space-y-3">
+                    {[...Array(8)].map((_, i) => (
+                      <div key={i} className="h-14 rounded-xl bg-elevated/60 animate-pulse border border-brd/40" />
+                    ))}
+                  </div>
+                ) : chartAlbums.length === 0 ? (
+                  <div className="py-16 text-center text-txt-muted text-sm">
+                    No chart albums available.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-brd/50">
+                    {chartAlbums.map((album, i) => {
+                      const globalRank = (albumsPage - 1) * 15 + i + 1;
+                      const isTopThree = globalRank <= 3;
+                      const albumArtist = album.artist?.firstName
+                        ? `${album.artist.firstName} ${album.artist.lastName || ''}`.trim()
+                        : album.artist?.username || 'PulseBeat Artist';
+
+                      return (
+                        <div
+                          key={album._id || i}
+                          onClick={() => navigate(`/album/${album._id}`)}
+                          className="grid grid-cols-12 items-center p-3.5 hover:bg-elevated transition-colors cursor-pointer group"
+                        >
+                          <span
+                            className={`col-span-1 text-center font-space font-black text-sm flex items-center justify-center gap-1 ${
+                              isTopThree ? 'text-primary' : 'text-txt-muted'
+                            }`}
+                            style={isTopThree ? { color: accentColor } : undefined}
+                          >
+                            {isTopThree && <Crown size={12} className="hidden sm:inline" />}
+                            {globalRank}
+                          </span>
+                          <div className="col-span-6 md:col-span-6 flex items-center gap-3.5 min-w-0 pr-2">
+                            <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 shadow-sm bg-elevated border border-brd">
+                              <img
+                                src={album.coverImage || 'https://picsum.photos/seed/album/100/100'}
+                                alt={album.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Play size={16} className="text-white fill-white ml-0.5" />
+                              </div>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-txt truncate group-hover:text-primary transition-colors">
+                                {album.title}
+                              </p>
+                              <p className="text-xs text-txt-sec truncate">
+                                {albumArtist}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="col-span-2 text-right text-xs font-space text-txt-sec hidden sm:block">
+                            {album.songs?.length || 0} tracks
+                          </span>
+                          <span className="col-span-3 md:col-span-2 text-right text-xs font-space text-txt-sec">
+                            {(album.plays || 0).toLocaleString()} <span className="hidden md:inline text-txt-muted">plays</span>
+                          </span>
+                          <div className="col-span-2 md:col-span-1 flex items-center justify-end pr-2" onClick={(e) => e.stopPropagation()}>
+                            <TrackActionMenu
+                              item={album}
+                              itemType="album"
+                              onOpenPlaylistModal={(modalItem) => {
+                                setPlaylistModalItem(modalItem);
+                                setPlaylistModalType('album');
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Albums Pagination Bar */}
+              <PaginationBar
+                currentPage={albumsPage}
+                totalPages={albumsPagination.totalPages}
+                totalItems={albumsPagination.total}
+                limit={15}
+                onPageChange={(p) => setAlbumsPage(p)}
+              />
+            </div>
+          )}
+
+          {/* Sub-Tab 3C: ARTISTS FLATLIST */}
+          {chartsTab === 'artists' && (
+            <div className="space-y-4">
+              <div className="bg-sidebar rounded-2xl border border-brd overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-brd grid grid-cols-12 text-xs font-space font-bold uppercase tracking-wider text-txt-muted">
+                  <span className="col-span-1 text-center">#</span>
+                  <span className="col-span-6 md:col-span-5">Artist</span>
+                  <span className="col-span-2 md:col-span-3 text-right">Total Plays</span>
+                  <span className="col-span-2 md:col-span-2 text-right pr-2">Total Likes</span>
+                  <span className="col-span-1 text-right pr-2">Profile</span>
+                </div>
+
+                {loadingChartArtists ? (
+                  <div className="p-4 space-y-3">
+                    {[...Array(8)].map((_, i) => (
+                      <div key={i} className="h-14 rounded-xl bg-elevated/60 animate-pulse border border-brd/40" />
+                    ))}
+                  </div>
+                ) : chartArtists.length === 0 ? (
+                  <div className="py-16 text-center text-txt-muted text-sm">
+                    No chart artists available.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-brd/50">
+                    {chartArtists.map((artist, i) => {
+                      const globalRank = (artistsPage - 1) * 15 + i + 1;
+                      const isTopThree = globalRank <= 3;
+                      const artistDetails = artist.artistDetails || {};
+                      const artistName = artistDetails.firstName
+                        ? `${artistDetails.firstName} ${artistDetails.lastName || ''}`.trim()
+                        : artistDetails.username || 'PulseBeat Artist';
+                      const artistId = artistDetails._id || artist._id;
+
+                      return (
+                        <div
+                          key={artistId || i}
+                          onClick={() => navigate(`/artist/${artistId}`)}
+                          className="grid grid-cols-12 items-center p-3.5 hover:bg-elevated transition-colors cursor-pointer group"
+                        >
+                          <span
+                            className={`col-span-1 text-center font-space font-black text-sm flex items-center justify-center gap-1 ${
+                              isTopThree ? 'text-primary' : 'text-txt-muted'
+                            }`}
+                            style={isTopThree ? { color: accentColor } : undefined}
+                          >
+                            {isTopThree && <Crown size={12} className="hidden sm:inline" />}
+                            {globalRank}
+                          </span>
+                          <div className="col-span-6 md:col-span-5 flex items-center gap-3.5 min-w-0 pr-2">
+                            <div className="relative w-11 h-11 rounded-full overflow-hidden shrink-0 shadow-sm bg-elevated border border-brd flex items-center justify-center font-space font-bold text-txt-sec">
+                              {artistDetails.profilePicture ? (
+                                <img
+                                  src={artistDetails.profilePicture}
+                                  alt={artistName}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                              ) : (
+                                <span>{getInitials(artistName)}</span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-txt truncate group-hover:text-primary transition-colors">
+                                {artistName}
+                              </p>
+                              <p className="text-xs text-txt-sec truncate">
+                                @{artistDetails.username || 'artist'}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="col-span-2 md:col-span-3 text-right text-xs font-space text-txt-sec">
+                            {(artist.totalPlays || 0).toLocaleString()} <span className="hidden sm:inline text-txt-muted">plays</span>
+                          </span>
+                          <span className="col-span-2 md:col-span-2 text-right text-xs font-space text-txt-sec pr-2">
+                            <span className="inline-flex items-center gap-1">
+                              <Heart size={12} className="text-txt-muted fill-txt-muted" />
+                              {(artist.totalLikes || 0).toLocaleString()}
+                            </span>
+                          </span>
+                          <div className="col-span-1 flex items-center justify-end pr-2 text-txt-muted group-hover:text-txt">
+                            <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Artists Pagination Bar */}
+              <PaginationBar
+                currentPage={artistsPage}
+                totalPages={artistsPagination.totalPages}
+                totalItems={artistsPagination.total}
+                limit={15}
+                onPageChange={(p) => setArtistsPage(p)}
+              />
+            </div>
+          )}
+
+          {/* Sub-Tab 3D: PLAYLISTS FLATLIST */}
+          {chartsTab === 'playlists' && (
+            <div className="space-y-4">
+              <div className="bg-sidebar rounded-2xl border border-brd overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-brd grid grid-cols-12 text-xs font-space font-bold uppercase tracking-wider text-txt-muted">
+                  <span className="col-span-1 text-center">#</span>
+                  <span className="col-span-6 md:col-span-5">Playlist</span>
+                  <span className="col-span-2 md:col-span-3 text-right">Tracks</span>
+                  <span className="col-span-2 md:col-span-2 text-right pr-2">Likes</span>
+                  <span className="col-span-1 text-right pr-2">Action</span>
+                </div>
+
+                {loadingChartPlaylists ? (
+                  <div className="p-4 space-y-3">
+                    {[...Array(8)].map((_, i) => (
+                      <div key={i} className="h-14 rounded-xl bg-elevated/60 animate-pulse border border-brd/40" />
+                    ))}
+                  </div>
+                ) : chartPlaylists.length === 0 ? (
+                  <div className="py-16 text-center text-txt-muted text-sm">
+                    No chart playlists available.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-brd/50">
+                    {chartPlaylists.map((playlist, i) => {
+                      const globalRank = (playlistsPage - 1) * 15 + i + 1;
+                      const isTopThree = globalRank <= 3;
+                      const playlistTitle = playlist.name || 'Untitled Playlist';
+                      const playlistOwner = playlist.owner?.username || 'Community';
+                      const playlistCover = playlist.coverImage || 'https://picsum.photos/seed/playlist/100/100';
+
+                      return (
+                        <div
+                          key={playlist._id || i}
+                          onClick={() => navigate(`/playlist/${playlist._id}`)}
+                          className="grid grid-cols-12 items-center p-3.5 hover:bg-elevated transition-colors cursor-pointer group"
+                        >
+                          <span
+                            className={`col-span-1 text-center font-space font-black text-sm flex items-center justify-center gap-1 ${
+                              isTopThree ? 'text-primary' : 'text-txt-muted'
+                            }`}
+                            style={isTopThree ? { color: accentColor } : undefined}
+                          >
+                            {isTopThree && <Crown size={12} className="hidden sm:inline" />}
+                            {globalRank}
+                          </span>
+                          <div className="col-span-6 md:col-span-5 flex items-center gap-3.5 min-w-0 pr-2">
+                            <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 shadow-sm bg-elevated border border-brd">
+                              <img
+                                src={playlistCover}
+                                alt={playlistTitle}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Play size={16} className="text-white fill-white ml-0.5" />
+                              </div>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-txt truncate group-hover:text-primary transition-colors">
+                                {playlistTitle}
+                              </p>
+                              <p className="text-xs text-txt-sec truncate">
+                                By @{playlistOwner}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="col-span-2 md:col-span-3 text-right text-xs font-space text-txt-sec">
+                            {playlist.songs?.length || 0} <span className="hidden sm:inline text-txt-muted">tracks</span>
+                          </span>
+                          <span className="col-span-2 md:col-span-2 text-right text-xs font-space text-txt-sec pr-2">
+                            <span className="inline-flex items-center gap-1">
+                              <Heart size={12} className="text-txt-muted fill-txt-muted" />
+                              {(playlist.likesCount || 0).toLocaleString()}
+                            </span>
+                          </span>
+                          <div className="col-span-1 flex items-center justify-end pr-2" onClick={(e) => e.stopPropagation()}>
+                            <TrackActionMenu
+                              item={playlist}
+                              itemType="playlist"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Playlists Pagination Bar */}
+              <PaginationBar
+                currentPage={playlistsPage}
+                totalPages={playlistsPagination.totalPages}
+                totalItems={playlistsPagination.total}
+                limit={15}
+                onPageChange={(p) => setPlaylistsPage(p)}
+              />
+            </div>
+          )}
         </section>
       )}
 

@@ -31,6 +31,11 @@ router.get('/community',
     playlistController.getCommunityPlaylists
 );
 
+router.get('/community/:limit',
+    authMiddleware.authenticateUser,
+    playlistController.getCommunityPlaylists
+);
+
 router.get('/:id',
     authMiddleware.authenticateUser,
     playlistController.getPlaylistById

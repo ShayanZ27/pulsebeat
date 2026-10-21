@@ -30,7 +30,7 @@ import { selectAccentColor, selectAccentTextColor } from '../store/themeSlice';
 import { selectCurrentUser } from '../store/authSlice';
 import TrackActionMenu from '../components/common/TrackActionMenu';
 import EditPlaylistModal from '../components/common/EditPlaylistModal';
-import { HeartbeatLoader, PlayingHeartbeat, PlayingOverlay } from '../components/common/PulseAnimations';
+import { HeartbeatLoader, PlayingOverlay } from '../components/common/PulseAnimations';
 import { formatTime } from '../utils/format';
 import { showToast } from '../utils/toast';
 
@@ -374,12 +374,13 @@ export default function PlaylistPage() {
                   >
                     {/* Index / Play indicator */}
                     <div className="col-span-1 flex items-center justify-center">
-                      <span className="group-hover:hidden text-xs font-space font-bold text-txt-muted flex items-center justify-center">
-                        {isThisPlaying ? (
-                          <PlayingHeartbeat size={15} color={accentColor} />
-                        ) : (
-                          idx + 1
-                        )}
+                      <span
+                        className={`group-hover:hidden text-xs font-space font-bold ${
+                          isThisPlaying ? 'text-primary' : 'text-txt-muted'
+                        } flex items-center justify-center`}
+                        style={isThisPlaying ? { color: accentColor } : undefined}
+                      >
+                        {idx + 1}
                       </span>
                       <Play size={16} className="hidden group-hover:block fill-current" style={{ color: accentColor }} />
                     </div>

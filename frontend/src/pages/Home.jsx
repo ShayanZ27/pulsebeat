@@ -451,7 +451,6 @@ const HomePage = () => {
       <HorizontalSlider
         title="Recently Played"
         accentColor={accentColor}
-        viewAllLink="/library"
       >
         {recentTracks.map((item, i) => {
           const trackTitle = item.title || 'Untitled Track';
@@ -511,7 +510,7 @@ const HomePage = () => {
       <HorizontalSlider
         title="Made For You"
         accentColor={accentColor}
-        viewAllLink="/library"
+        viewAllLink="/discover/top-charts?tab=playlists"
       >
         {displayPlaylists.map((item, i) => {
           const playlistTitle = item.name || item.title || 'Curated Mix';
@@ -626,7 +625,7 @@ const HomePage = () => {
         title="Top Artists"
         icon={<Sparkles size={20} style={{ color: accentColor }} className="opacity-70" />}
         accentColor={accentColor}
-        viewAllLink="/discover/top-charts"
+        viewAllLink="/discover/top-charts?tab=artists"
       >
         {displayArtists.map((artistItem, i) => {
           const details = artistItem.artistDetails || {};

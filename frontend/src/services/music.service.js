@@ -1,11 +1,31 @@
-import api, { unwrap } from './api';
+import api, { unwrap, unwrapWithPagination } from './api';
 
 export const musicService = {
   getAll: (params) => api.get('/music', { params }).then(unwrap),
-  getLatestReleases: (limit = 10) => api.get(`/music/latest-releases/${limit}`).then(unwrap),
-  getTrending: (limit = 20) => api.get(`/music/trending-music/${limit}`).then(unwrap),
-  getTrendingAlbums: (limit = 10) => api.get(`/music/trending-albums/${limit}`).then(unwrap),
-  getTrendingArtists: (limit = 10) => api.get(`/music/trending-artists/${limit}`).then(unwrap),
+  getLatestReleases: (arg = 10) => {
+    if (typeof arg === 'object' && arg !== null) {
+      return api.get('/music/latest-releases', { params: arg }).then(unwrapWithPagination);
+    }
+    return api.get(`/music/latest-releases/${arg}`).then(unwrap);
+  },
+  getTrending: (arg = 20) => {
+    if (typeof arg === 'object' && arg !== null) {
+      return api.get('/music/trending-music', { params: arg }).then(unwrapWithPagination);
+    }
+    return api.get(`/music/trending-music/${arg}`).then(unwrap);
+  },
+  getTrendingAlbums: (arg = 10) => {
+    if (typeof arg === 'object' && arg !== null) {
+      return api.get('/music/trending-albums', { params: arg }).then(unwrapWithPagination);
+    }
+    return api.get(`/music/trending-albums/${arg}`).then(unwrap);
+  },
+  getTrendingArtists: (arg = 10) => {
+    if (typeof arg === 'object' && arg !== null) {
+      return api.get('/music/trending-artists', { params: arg }).then(unwrapWithPagination);
+    }
+    return api.get(`/music/trending-artists/${arg}`).then(unwrap);
+  },
   getAlbum: (id) => api.get(`/music/albums/${id}`).then(unwrap),
   getArtistMusic: (id) => api.get(`/music/artist/${id}/music`).then(unwrap),
   getArtistAlbums: (id) => api.get(`/music/artist/${id}/albums`).then(unwrap),

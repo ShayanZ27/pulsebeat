@@ -325,12 +325,38 @@ async function incrementPlayCount(req, res) {
 
 async function getTrendingMusic(req, res) {
     try {
-        let limit = parseInt(req.params.limit);
-        if (isNaN(limit) || limit <= 0 || limit > 50) {
+        const page = parseInt(req.query.page);
+        let limit = parseInt(req.query.limit) || parseInt(req.params.limit) || 20;
+        if (isNaN(limit) || limit <= 0 || limit > 100) {
             limit = 20;
         }
 
-        const musics = await musicModel.find({ isActive: { $ne: false }, isSuspended: { $ne: true } })
+        const filter = { isActive: { $ne: false }, isSuspended: { $ne: true } };
+
+        if (!isNaN(page) && page > 0) {
+            const skip = (page - 1) * limit;
+            const [total, musics] = await Promise.all([
+                musicModel.countDocuments(filter),
+                musicModel.find(filter)
+                    .sort({ plays: -1, likesCount: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .populate('artist', 'username firstName lastName profilePicture')
+            ]);
+            return res.status(200).json({
+                success: true,
+                message: "Trending music fetched successfully",
+                data: musics,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit) || 1
+                }
+            });
+        }
+
+        const musics = await musicModel.find(filter)
             .sort({ plays: -1, likesCount: -1 })
             .limit(limit)
             .populate('artist', 'username firstName lastName profilePicture');
@@ -347,12 +373,43 @@ async function getTrendingMusic(req, res) {
 
 async function getTrendingAlbums(req, res) {
     try {
-        let limit = parseInt(req.params.limit);
-        if (isNaN(limit) || limit <= 0 || limit > 50) {
+        const page = parseInt(req.query.page);
+        let limit = parseInt(req.query.limit) || parseInt(req.params.limit) || 20;
+        if (isNaN(limit) || limit <= 0 || limit > 100) {
             limit = 20;
         }
 
-        const albums = await albumModel.find({ isActive: { $ne: false }, isSuspended: { $ne: true } })
+        const filter = { isActive: { $ne: false }, isSuspended: { $ne: true } };
+
+        if (!isNaN(page) && page > 0) {
+            const skip = (page - 1) * limit;
+            const [total, albums] = await Promise.all([
+                albumModel.countDocuments(filter),
+                albumModel.find(filter)
+                    .sort({ plays: -1, likesCount: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .populate('artist', 'username firstName lastName profilePicture')
+                    .populate({
+                        path: 'songs',
+                        match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
+                        populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
+                    })
+            ]);
+            return res.status(200).json({
+                success: true,
+                message: "Trending albums fetched successfully",
+                data: albums,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit) || 1
+                }
+            });
+        }
+
+        const albums = await albumModel.find(filter)
             .sort({ plays: -1, likesCount: -1 })
             .limit(limit)
             .populate('artist', 'username firstName lastName profilePicture')
@@ -374,12 +431,13 @@ async function getTrendingAlbums(req, res) {
 
 async function getTrendingArtists(req, res) {
     try {
-        let limit = parseInt(req.params.limit);
-        if (isNaN(limit) || limit <= 0 || limit > 50) {
+        const page = parseInt(req.query.page);
+        let limit = parseInt(req.query.limit) || parseInt(req.params.limit) || 20;
+        if (isNaN(limit) || limit <= 0 || limit > 100) {
             limit = 20;
         }
 
-        const trendingArtists = await musicModel.aggregate([
+        const basePipeline = [
             // 1. Only look at active, non-suspended music
             { $match: { isActive: { $ne: false }, isSuspended: { $ne: true } } },
 
@@ -398,7 +456,7 @@ async function getTrendingArtists(req, res) {
             // 4. JOIN the User collection to get the artist's profile info
             { 
                 $lookup: {
-                    from: "users", // The exact name of the MongoDB collection in the database
+                    from: "users",
                     localField: "_id",
                     foreignField: "_id",
                     as: "artistDetails"
@@ -408,13 +466,57 @@ async function getTrendingArtists(req, res) {
             // 5. Unwind the joined array so it's a single object
             { $unwind: "$artistDetails" },
 
-            // 6. FILTER OUT suspended users (Crucial step!)
-            { $match: { "artistDetails.isSuspended": { $ne: true } } },
+            // 6. FILTER OUT suspended users
+            { $match: { "artistDetails.isSuspended": { $ne: true } } }
+        ];
 
-            // 7. Limit the results AFTER filtering out suspended users
+        if (!isNaN(page) && page > 0) {
+            const skip = (page - 1) * limit;
+            const [facetResult] = await musicModel.aggregate([
+                ...basePipeline,
+                {
+                    $facet: {
+                        data: [
+                            { $skip: skip },
+                            { $limit: limit },
+                            { 
+                                $project: {
+                                    _id: 1,
+                                    totalPlays: 1,
+                                    totalLikes: 1,
+                                    "artistDetails._id": 1,
+                                    "artistDetails.username": 1,
+                                    "artistDetails.firstName": 1,
+                                    "artistDetails.lastName": 1,
+                                    "artistDetails.profilePicture": 1,
+                                    "artistDetails.bio": 1
+                                } 
+                            }
+                        ],
+                        totalCount: [{ $count: "count" }]
+                    }
+                }
+            ]);
+
+            const total = facetResult?.totalCount?.[0]?.count || 0;
+            const trendingArtists = facetResult?.data || [];
+
+            return res.status(200).json({
+                success: true,
+                message: "Trending artists fetched successfully",
+                data: trendingArtists,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit) || 1
+                }
+            });
+        }
+
+        const trendingArtists = await musicModel.aggregate([
+            ...basePipeline,
             { $limit: limit },
-
-            // 8. Format the final output to hide passwords and clean up the data
             { 
                 $project: {
                     _id: 1,
@@ -542,18 +644,65 @@ async function getRecentlyPlayed(req, res) {
 
 async function getLatestReleases(req, res) {
     try {
-        let limit = parseInt(req.params.limit);
+        const page = parseInt(req.query.page);
+        let limit = parseInt(req.query.limit) || parseInt(req.params.limit) || 10;
         if (isNaN(limit) || limit <= 0 || limit > 50) {
             limit = 10;
         }
 
+        const musicFilter = { isActive: { $ne: false }, isSuspended: { $ne: true } };
+        const albumFilter = { isActive: { $ne: false }, isSuspended: { $ne: true } };
+
+        if (!isNaN(page) && page > 0) {
+            const skip = (page - 1) * limit;
+            const needCount = skip + limit;
+
+            const [totalMusic, totalAlbums, latestMusic, latestAlbums] = await Promise.all([
+                musicModel.countDocuments(musicFilter),
+                albumModel.countDocuments(albumFilter),
+                musicModel.find(musicFilter)
+                    .sort({ createdAt: -1 })
+                    .limit(needCount)
+                    .populate('artist', 'username firstName lastName profilePicture'),
+                albumModel.find(albumFilter)
+                    .sort({ createdAt: -1 })
+                    .limit(needCount)
+                    .populate('artist', 'username firstName lastName profilePicture')
+                    .populate({
+                        path: 'songs',
+                        match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
+                        populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
+                    }),
+            ]);
+
+            const combined = [
+                ...latestMusic.map(m => ({ ...m.toObject(), releaseType: 'music' })),
+                ...latestAlbums.map(a => ({ ...a.toObject(), releaseType: 'album' })),
+            ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+             .slice(skip, skip + limit);
+
+            const total = totalMusic + totalAlbums;
+
+            return res.status(200).json({
+                success: true,
+                message: "Latest releases fetched successfully",
+                data: combined,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit) || 1
+                }
+            });
+        }
+
         // Fetch latest music and albums in parallel (excluding suspended and inactive)
         const [latestMusic, latestAlbums] = await Promise.all([
-            musicModel.find({ isActive: { $ne: false }, isSuspended: { $ne: true } })
+            musicModel.find(musicFilter)
                 .sort({ createdAt: -1 })
                 .limit(limit)
                 .populate('artist', 'username firstName lastName profilePicture'),
-            albumModel.find({ isActive: { $ne: false }, isSuspended: { $ne: true } })
+            albumModel.find(albumFilter)
                 .sort({ createdAt: -1 })
                 .limit(limit)
                 .populate('artist', 'username firstName lastName profilePicture')

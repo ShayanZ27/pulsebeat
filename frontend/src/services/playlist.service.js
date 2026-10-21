@@ -1,8 +1,14 @@
-import api, { unwrap } from './api';
+import api, { unwrap, unwrapWithPagination } from './api';
 
 export const playlistService = {
   getUserPlaylists: () => api.get('/playlist').then(unwrap),
-  getCommunity: (limit = 20) => api.get('/playlist/community', { params: { limit } }).then(unwrap),
+  getCommunity: (arg = 20) => {
+    if (typeof arg === 'object' && arg !== null) {
+      return api.get('/playlist/community', { params: arg }).then(unwrapWithPagination);
+    }
+    const limit = typeof arg === 'number' ? arg : 20;
+    return api.get('/playlist/community', { params: { limit } }).then(unwrap);
+  },
   getById: (id) => api.get(`/playlist/${id}`).then(unwrap),
   create: (data) => api.post('/playlist/create', data).then(unwrap),
   update: ({ id, data }) => {

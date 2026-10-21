@@ -226,12 +226,44 @@ async function updatePlaylist(req, res) {
 
 async function getCommunityPlaylists(req, res) {
     try {
-        let limit = parseInt(req.query.limit);
-        if (isNaN(limit) || limit <= 0 || limit > 50) {
+        const page = parseInt(req.query.page);
+        let limit = parseInt(req.query.limit) || parseInt(req.params.limit) || 20;
+        if (isNaN(limit) || limit <= 0 || limit > 100) {
             limit = 20;
         }
 
-        const playlists = await playlistModel.find({ isPublic: true })
+        const filter = { isPublic: true };
+
+        if (!isNaN(page) && page > 0) {
+            const skip = (page - 1) * limit;
+            const [total, playlists] = await Promise.all([
+                playlistModel.countDocuments(filter),
+                playlistModel.find(filter)
+                    .sort({ likesCount: -1, createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .populate('owner', 'username profilePicture')
+                    .populate({
+                        path: 'songs',
+                        match: { isActive: { $ne: false }, isSuspended: { $ne: true } },
+                        populate: { path: 'artist', select: 'username firstName lastName profilePicture' }
+                    })
+            ]);
+
+            return res.status(200).json({
+                success: true,
+                message: "Community playlists fetched successfully",
+                data: playlists,
+                pagination: {
+                    page,
+                    limit,
+                    total,
+                    totalPages: Math.ceil(total / limit) || 1
+                }
+            });
+        }
+
+        const playlists = await playlistModel.find(filter)
             .sort({ likesCount: -1, createdAt: -1 })
             .limit(limit)
             .populate('owner', 'username profilePicture')

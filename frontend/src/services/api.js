@@ -20,6 +20,17 @@ const api = axios.create({
 /** All controllers respond with `{ success, message, data }`; return `data`. */
 export const unwrap = (response) => response.data?.data;
 
+/** For controllers that support pagination metadata, returns `{ items, pagination }` when present, else `data`. */
+export const unwrapWithPagination = (response) => {
+  if (response.data?.pagination) {
+    return {
+      items: response.data.data || [],
+      pagination: response.data.pagination,
+    };
+  }
+  return response.data?.data;
+};
+
 /** Best-effort human readable error message from an Axios error. */
 export function getErrorMessage(error) {
   return error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Something went wrong';
