@@ -12,6 +12,7 @@ import {
   Heart,
   UserCheck,
   UserPlus,
+  Flag,
 } from 'lucide-react';
 import {
   useGetArtistMusicQuery,
@@ -25,6 +26,7 @@ import { playTracks, togglePlay, selectIsPlaying, selectCurrentTrack } from '../
 import { selectAccentColor, selectAccentTextColor } from '../store/themeSlice';
 import TrackActionMenu from '../components/common/TrackActionMenu';
 import AddToPlaylistModal from '../components/common/AddToPlaylistModal';
+import ReportModal from '../components/common/ReportModal';
 import { PlayingOverlay, PlayingHeartbeat } from '../components/common/PulseAnimations';
 import { formatTime } from '../utils/format';
 import { showToast } from '../utils/toast';
@@ -39,6 +41,7 @@ export default function ArtistPage() {
   const currentTrack = useSelector(selectCurrentTrack);
 
   const [isFollowing, setIsFollowing] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [playlistModalItem, setPlaylistModalItem] = useState(null);
   const [playlistModalType, setPlaylistModalType] = useState('track');
 
@@ -171,6 +174,15 @@ export default function ArtistPage() {
                 {isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />}
                 {isFollowing ? 'Following' : 'Follow'}
               </button>
+
+              <button
+                onClick={() => setShowReportModal(true)}
+                className="w-12 h-12 rounded-full bg-sidebar border border-brd flex items-center justify-center text-txt-sec hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                title="Report Artist"
+                aria-label="Report Artist"
+              >
+                <Flag size={18} />
+              </button>
             </div>
           </div>
         </div>
@@ -302,6 +314,20 @@ export default function ArtistPage() {
         onClose={() => setPlaylistModalItem(null)}
         item={playlistModalItem}
         itemType={playlistModalType}
+      />
+
+      {/* Report Artist Modal */}
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        item={{
+          _id: artistInfo?._id || id,
+          title: artistName,
+          name: artistName,
+          username: artistInfo?.username,
+          profilePicture: artistInfo?.profilePicture,
+        }}
+        itemType="user"
       />
     </div>
   );

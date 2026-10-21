@@ -10,6 +10,7 @@ import {
   HelpCircle,
   Music2,
   Disc3,
+  User,
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
@@ -153,7 +154,7 @@ export default function ReportModal({
             </div>
             <div className="min-w-0">
               <h2 id="report-modal-title" className="text-base sm:text-lg font-bold font-space text-txt truncate">
-                Report {contentType === 'Music' ? 'Track' : contentType}
+                Report {contentType === 'Music' ? 'Track' : contentType === 'User' ? 'Artist' : contentType}
               </h2>
               <p className="text-xs text-txt-sec truncate">
                 Help our moderation team keep PulseBeat safe and authentic
@@ -179,6 +180,8 @@ export default function ReportModal({
             <div className="w-12 h-12 rounded-xl overflow-hidden bg-sidebar border border-brd shrink-0 flex items-center justify-center shadow-xs">
               {coverUrl ? (
                 <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+              ) : isUser ? (
+                <User size={20} className="text-txt-muted" />
               ) : isAlbum ? (
                 <Disc3 size={20} className="text-txt-muted" />
               ) : (
@@ -191,7 +194,7 @@ export default function ReportModal({
                   {title}
                 </span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-card border border-brd text-txt-muted font-space shrink-0 uppercase tracking-wider">
-                  {contentType === 'Music' ? 'Track' : contentType}
+                  {contentType === 'Music' ? 'Track' : contentType === 'User' ? 'Artist' : contentType}
                 </span>
               </div>
               {artistName && (
@@ -209,7 +212,7 @@ export default function ReportModal({
               <div className="space-y-0.5">
                 <p className="font-bold">Report Already Under Review</p>
                 <p className="text-[11px] leading-relaxed text-amber-900/90 dark:text-amber-300/90">
-                  You have already submitted a report for this {contentType.toLowerCase()}. Our curation team is currently reviewing it.
+                  You have already submitted a report for this {contentType === 'User' ? 'artist' : contentType.toLowerCase()}. Our curation team is currently reviewing it.
                 </p>
               </div>
             </div>
