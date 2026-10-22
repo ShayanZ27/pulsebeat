@@ -23,9 +23,10 @@ import {
   ChevronDown,
   Upload,
   Eye,
-  EyeOff,
   ShieldAlert,
   ExternalLink,
+  Flag,
+  BadgeCheck,
 } from 'lucide-react';
 import {
   useGetUserProfileQuery,
@@ -37,6 +38,10 @@ import {
   useToggleMusicVisibilityMutation,
   useToggleAlbumVisibilityMutation,
   useRecordPlayMutation,
+  useGetAdminFeaturedQuery,
+  useGetAdminReportsQuery,
+  useGetAdminArtistRequestsQuery,
+  useGetAdminSuspendedQuery,
 } from '../store/api';
 import { selectCurrentUser } from '../store/authSlice';
 import { selectAccentColor, selectAccentTextColor } from '../store/themeSlice';
@@ -50,6 +55,10 @@ import CreateAlbumModal from '../components/profile/CreateAlbumModal';
 import CreatePlaylistModal from '../components/common/CreatePlaylistModal';
 import TrackActionMenu from '../components/common/TrackActionMenu';
 import { PlayingHeartbeat } from '../components/common/PulseAnimations';
+import AdminFeaturedTab from '../components/admin/AdminFeaturedTab';
+import AdminReportsTab from '../components/admin/AdminReportsTab';
+import AdminArtistRequestsTab from '../components/admin/AdminArtistRequestsTab';
+import AdminSuspendedTab from '../components/admin/AdminSuspendedTab';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -66,11 +75,12 @@ export default function ProfilePage() {
   // Merge server profile data with local auth user
   const user = profileData || localUser;
   const isArtist = user?.role === 'artist';
+  const isAdmin = user?.role === 'admin';
 
-  // Listener data (skipped for artists)
-  const { data: userPlaylists = [], isLoading: loadingPlaylists } = useGetUserPlaylistsQuery(undefined, { skip: isArtist });
-  const { data: rawLikedSongs = [], isLoading: loadingLikes } = useGetLikedMusicQuery(undefined, { skip: isArtist });
-  const { data: rawLikedAlbums = [], isLoading: loadingAlbums } = useGetLikedAlbumsQuery(undefined, { skip: isArtist });
+  // Listener data (skipped for artists & admins)
+  const { data: userPlaylists = [], isLoading: loadingPlaylists } = useGetUserPlaylistsQuery(undefined, { skip: isArtist || isAdmin });
+  const { data: rawLikedSongs = [], isLoading: loadingLikes } = useGetLikedMusicQuery(undefined, { skip: isArtist || isAdmin });
+  const { data: rawLikedAlbums = [], isLoading: loadingAlbums } = useGetLikedAlbumsQuery(undefined, { skip: isArtist || isAdmin });
 
   // Artist data (skipped for listeners)
   const {
@@ -91,6 +101,20 @@ export default function ProfilePage() {
   // UI state
   const [listenerTab, setListenerTab] = useState('playlists'); // 'playlists' | 'liked-songs' | 'liked-albums'
   const [artistTab, setArtistTab] = useState('tracks'); // 'tracks' | 'albums'
+  const [adminTab, setAdminTab] = useState('featured'); // 'featured' | 'reports' | 'artist-requests' | 'suspended'
+
+  // Admin data queries (only active when isAdmin)
+  const { data: adminFeatured = [] } = useGetAdminFeaturedQuery(undefined, { skip: !isAdmin });
+  const { data: adminReports = [] } = useGetAdminReportsQuery({ status: 'open' }, { skip: !isAdmin });
+  const { data: adminRequests = [] } = useGetAdminArtistRequestsQuery({ status: 'pending' }, { skip: !isAdmin });
+  const { data: adminSuspended = { tracks: [], albums: [], artists: [] } } = useGetAdminSuspendedQuery(undefined, { skip: !isAdmin });
+
+  const pendingReportsCount = (adminReports || []).filter((r) => r.status === 'pending').length;
+  const pendingRequestsCount = (adminRequests || []).filter((r) => r.status === 'pending').length;
+  const suspendedTracksCount = adminSuspended?.tracks?.length || 0;
+  const suspendedAlbumsCount = adminSuspended?.albums?.length || 0;
+  const suspendedArtistsCount = adminSuspended?.artists?.length || 0;
+  const totalSuspendedCount = suspendedTracksCount + suspendedAlbumsCount + suspendedArtistsCount;
   const [showEditModal, setShowEditModal] = useState(false);
   const [showArtistModal, setShowArtistModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -236,7 +260,7 @@ export default function ProfilePage() {
   return (
     <div className="flex-1 overflow-y-auto pb-24 md:pb-28">
       {/* ─── Hero / Header Banner ─── */}
-      <div className="relative overflow-hidden bg-gradient-to-b from-card via-card/90 to-bg border-b border-brd">
+      <div className="relative overflow-hidden bg-linear-to-b from-card via-card/90 to-bg border-b border-brd">
         {/* Ambient Glow */}
         <div
           className="absolute -top-32 -left-32 w-96 h-96 rounded-full blur-3xl opacity-25 pointer-events-none transition-colors duration-700"
@@ -282,20 +306,32 @@ export default function ProfilePage() {
             <div className="flex-1 min-w-0 space-y-3">
               {/* Role Badge */}
               <div className="flex items-center gap-2.5 flex-wrap">
-                <span
-                  className="px-3 py-1 rounded-full text-xs font-bold font-space flex items-center gap-1.5 shadow-sm border border-brd"
-                  style={{
-                    backgroundColor: `${accentColor}18`,
-                    color: accentColor,
-                    borderColor: `${accentColor}40`,
-                  }}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
-                  {isArtist ? 'Verified Artist Creator' : 'Listener'}
-                </span>
+                {isAdmin ? (
+                  <span className="px-3.5 py-1 rounded-full text-xs font-bold font-space flex items-center gap-1.5 shadow-sm border border-red-500/30 bg-red-500/15 text-red-400">
+                    <ShieldCheck size={14} className="text-red-400" />
+                    System Administrator
+                  </span>
+                ) : user?.isSuspended ? (
+                  <span className="px-3.5 py-1 rounded-full text-xs font-bold font-space flex items-center gap-1.5 shadow-sm border border-red-500/40 bg-red-500/20 text-red-400">
+                    <ShieldAlert size={14} className="text-red-400" />
+                    Creator Account Suspended
+                  </span>
+                ) : (
+                  <span
+                    className="px-3 py-1 rounded-full text-xs font-bold font-space flex items-center gap-1.5 shadow-sm border border-brd"
+                    style={{
+                      backgroundColor: `${accentColor}18`,
+                      color: accentColor,
+                      borderColor: `${accentColor}40`,
+                    }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
+                    {isArtist ? 'Verified Artist Creator' : 'Listener'}
+                  </span>
+                )}
                 <span className="text-xs text-txt-muted flex items-center gap-1">
                   <Calendar size={13} />
-                  {isArtist ? 'Creator since' : 'Listening since'} {formatJoined(user?.createdAt)}
+                  {isAdmin ? 'Admin since' : isArtist ? 'Creator since' : 'Listening since'} {formatJoined(user?.createdAt)}
                 </span>
               </div>
 
@@ -358,7 +394,46 @@ export default function ProfilePage() {
             </div>
 
             {/* Quick Stat Counters */}
-            {isArtist ? (
+            {isAdmin ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4 w-full md:w-auto p-4 rounded-2xl bg-card/70 border border-brd backdrop-blur-md">
+                <div
+                  className="text-center px-2 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setAdminTab('featured')}
+                >
+                  <p className="text-lg md:text-xl font-extrabold font-space" style={{ color: accentColor }}>
+                    {adminFeatured.length}
+                  </p>
+                  <p className="text-[11px] font-medium text-txt-muted uppercase tracking-wider">Featured</p>
+                </div>
+                <div
+                  className="text-center px-2 border-l sm:border-x border-brd cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setAdminTab('reports')}
+                >
+                  <p className="text-lg md:text-xl font-extrabold font-space text-amber-400">
+                    {pendingReportsCount}
+                  </p>
+                  <p className="text-[11px] font-medium text-txt-muted uppercase tracking-wider">Reports</p>
+                </div>
+                <div
+                  className="text-center px-2 border-t sm:border-t-0 sm:border-r border-brd pt-2 sm:pt-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setAdminTab('artist-requests')}
+                >
+                  <p className="text-lg md:text-xl font-extrabold font-space text-emerald-400">
+                    {pendingRequestsCount}
+                  </p>
+                  <p className="text-[11px] font-medium text-txt-muted uppercase tracking-wider">Requests</p>
+                </div>
+                <div
+                  className="text-center px-2 border-t sm:border-t-0 border-l sm:border-l-0 border-brd pt-2 sm:pt-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setAdminTab('suspended')}
+                >
+                  <p className="text-lg md:text-xl font-extrabold font-space text-red-400">
+                    {totalSuspendedCount}
+                  </p>
+                  <p className="text-[11px] font-medium text-txt-muted uppercase tracking-wider">Suspended</p>
+                </div>
+              </div>
+            ) : isArtist ? (
               <div className="grid grid-cols-3 gap-3 md:gap-4 w-full md:w-auto p-4 rounded-2xl bg-card/70 border border-brd backdrop-blur-md">
                 <div className="text-center px-2">
                   <p className="text-lg md:text-xl font-extrabold font-space text-txt">
@@ -406,10 +481,119 @@ export default function ProfilePage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Creator Account Suspension Alert */}
+        {user?.isSuspended && (
+          <div className="p-5 rounded-3xl bg-red-500/10 border border-red-500/30 flex items-start gap-4 text-red-400 shadow-sm animate-in fade-in duration-300">
+            <div className="w-10 h-10 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center shrink-0">
+              <ShieldAlert size={22} className="text-red-400" />
+            </div>
+            <div className="space-y-1.5 text-xs font-space flex-1">
+              <h4 className="font-bold text-sm text-red-300">Creator Account Suspended by Administration</h4>
+              <p className="text-red-300/80 leading-relaxed text-xs">
+                Your artist privileges have been temporarily suspended. Your public artist profile and discography are currently withheld from global discovery, search, and charts. You can continue listening to music as normal, but uploading new tracks or creating albums is disabled.
+              </p>
+            </div>
+          </div>
+        )}
         {/* ══════════════════════════════════════════════════════
-            ARTIST DASHBOARD VIEW
+            ADMIN DASHBOARD VIEW
         ══════════════════════════════════════════════════════ */}
-        {isArtist ? (
+        {isAdmin ? (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            {/* Admin Navigation Tabs */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brd pb-3">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setAdminTab('featured')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold font-space transition-all cursor-pointer whitespace-nowrap ${
+                    adminTab === 'featured'
+                      ? 'bg-elevated text-txt shadow-sm border border-brd'
+                      : 'text-txt-sec hover:text-txt hover:bg-elevated/50'
+                  }`}
+                  style={adminTab === 'featured' ? { borderColor: `${accentColor}40`, color: accentColor } : {}}
+                >
+                  <Sparkles size={16} />
+                  <span>Featured Content</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-sidebar border border-brd font-mono">
+                    {adminFeatured.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAdminTab('reports')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold font-space transition-all cursor-pointer whitespace-nowrap ${
+                    adminTab === 'reports'
+                      ? 'bg-elevated text-txt shadow-sm border border-brd'
+                      : 'text-txt-sec hover:text-txt hover:bg-elevated/50'
+                  }`}
+                  style={adminTab === 'reports' ? { borderColor: `${accentColor}40`, color: accentColor } : {}}
+                >
+                  <Flag size={16} />
+                  <span>Reports & Moderation</span>
+                  {pendingReportsCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 font-mono">
+                      {pendingReportsCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAdminTab('artist-requests')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold font-space transition-all cursor-pointer whitespace-nowrap ${
+                    adminTab === 'artist-requests'
+                      ? 'bg-elevated text-txt shadow-sm border border-brd'
+                      : 'text-txt-sec hover:text-txt hover:bg-elevated/50'
+                  }`}
+                  style={adminTab === 'artist-requests' ? { borderColor: `${accentColor}40`, color: accentColor } : {}}
+                >
+                  <BadgeCheck size={16} />
+                  <span>Artist Requests</span>
+                  {pendingRequestsCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono">
+                      {pendingRequestsCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAdminTab('suspended')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold font-space transition-all cursor-pointer whitespace-nowrap ${
+                    adminTab === 'suspended'
+                      ? 'bg-elevated text-txt shadow-sm border border-brd'
+                      : 'text-txt-sec hover:text-txt hover:bg-elevated/50'
+                  }`}
+                  style={adminTab === 'suspended' ? { borderColor: `${accentColor}40`, color: accentColor } : {}}
+                >
+                  <ShieldAlert size={16} />
+                  <span>Suspended Items</span>
+                  {totalSuspendedCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 font-mono">
+                      {totalSuspendedCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Admin Tab Content */}
+            {adminTab === 'featured' && (
+              <AdminFeaturedTab accentColor={accentColor} accentTextColor={accentTextColor} />
+            )}
+            {adminTab === 'reports' && (
+              <AdminReportsTab accentColor={accentColor} accentTextColor={accentTextColor} />
+            )}
+            {adminTab === 'artist-requests' && (
+              <AdminArtistRequestsTab accentColor={accentColor} accentTextColor={accentTextColor} />
+            )}
+            {adminTab === 'suspended' && (
+              <AdminSuspendedTab accentColor={accentColor} accentTextColor={accentTextColor} />
+            )}
+          </div>
+        ) : isArtist ? (
           <div className="space-y-8">
             {/* ─── First-time Approval Banner (Dismissible) ─── */}
             {!welcomeDismissed && (
@@ -465,18 +649,42 @@ export default function ProfilePage() {
 
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold font-space flex items-center gap-2 shadow-lg transition-transform hover:scale-105 active:scale-95 cursor-pointer"
-                  style={{ backgroundColor: accentColor, color: accentTextColor }}
+                  onClick={() => {
+                    if (user?.isSuspended) {
+                      showToast('Your creator account is suspended. You cannot upload tracks.', 'error');
+                      return;
+                    }
+                    setShowUploadModal(true);
+                  }}
+                  disabled={user?.isSuspended}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold font-space flex items-center gap-2 shadow-lg transition-transform ${
+                    user?.isSuspended
+                      ? 'opacity-50 cursor-not-allowed bg-card border border-brd text-txt-muted'
+                      : 'hover:scale-105 active:scale-95 cursor-pointer'
+                  }`}
+                  style={!user?.isSuspended ? { backgroundColor: accentColor, color: accentTextColor } : undefined}
+                  title={user?.isSuspended ? 'Account suspended - uploads disabled' : 'Upload Track'}
                 >
                   <Upload size={14} />
                   Upload Track
                 </button>
                 <button
-                  onClick={() => setShowCreateAlbumModal(true)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold font-space flex items-center gap-2 border border-brd bg-card hover:bg-elevated text-txt transition-all shadow-sm cursor-pointer active:scale-95"
+                  onClick={() => {
+                    if (user?.isSuspended) {
+                      showToast('Your creator account is suspended. You cannot create albums.', 'error');
+                      return;
+                    }
+                    setShowCreateAlbumModal(true);
+                  }}
+                  disabled={user?.isSuspended}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold font-space flex items-center gap-2 border border-brd bg-card transition-all shadow-sm ${
+                    user?.isSuspended
+                      ? 'opacity-50 cursor-not-allowed text-txt-muted'
+                      : 'hover:bg-elevated text-txt cursor-pointer active:scale-95'
+                  }`}
+                  title={user?.isSuspended ? 'Account suspended - album creation disabled' : 'Create Album'}
                 >
-                  <Plus size={14} style={{ color: accentColor }} />
+                  <Plus size={14} style={{ color: user?.isSuspended ? undefined : accentColor }} />
                   Create Album
                 </button>
               </div>
@@ -543,9 +751,20 @@ export default function ProfilePage() {
                         </p>
                       </div>
                       <button
-                        onClick={() => setShowUploadModal(true)}
-                        className="px-5 py-2.5 rounded-xl text-xs font-bold font-space transition-transform hover:scale-105 active:scale-95 inline-flex items-center gap-2 shadow-lg cursor-pointer"
-                        style={{ backgroundColor: accentColor, color: accentTextColor }}
+                        onClick={() => {
+                          if (user?.isSuspended) {
+                            showToast('Your creator account is suspended. You cannot upload tracks.', 'error');
+                            return;
+                          }
+                          setShowUploadModal(true);
+                        }}
+                        disabled={user?.isSuspended}
+                        className={`px-5 py-2.5 rounded-xl text-xs font-bold font-space transition-transform inline-flex items-center gap-2 shadow-lg ${
+                          user?.isSuspended
+                            ? 'opacity-50 cursor-not-allowed bg-card border border-brd text-txt-muted'
+                            : 'hover:scale-105 active:scale-95 cursor-pointer'
+                        }`}
+                        style={!user?.isSuspended ? { backgroundColor: accentColor, color: accentTextColor } : undefined}
                       >
                         <Upload size={14} />
                         Upload Your First Track
@@ -699,9 +918,20 @@ export default function ProfilePage() {
                         </p>
                       </div>
                       <button
-                        onClick={() => setShowCreateAlbumModal(true)}
-                        className="px-5 py-2.5 rounded-xl text-xs font-bold font-space transition-transform hover:scale-105 active:scale-95 inline-flex items-center gap-2 shadow-lg cursor-pointer"
-                        style={{ backgroundColor: accentColor, color: accentTextColor }}
+                        onClick={() => {
+                          if (user?.isSuspended) {
+                            showToast('Your creator account is suspended. You cannot create albums.', 'error');
+                            return;
+                          }
+                          setShowCreateAlbumModal(true);
+                        }}
+                        disabled={user?.isSuspended}
+                        className={`px-5 py-2.5 rounded-xl text-xs font-bold font-space transition-transform inline-flex items-center gap-2 shadow-lg ${
+                          user?.isSuspended
+                            ? 'opacity-50 cursor-not-allowed bg-card border border-brd text-txt-muted'
+                            : 'hover:scale-105 active:scale-95 cursor-pointer'
+                        }`}
+                        style={!user?.isSuspended ? { backgroundColor: accentColor, color: accentTextColor } : undefined}
                       >
                         <Plus size={14} />
                         Create Your First Album

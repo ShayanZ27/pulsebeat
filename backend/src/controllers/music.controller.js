@@ -20,6 +20,14 @@ const VALID_MOODS = [
 
 async function createMusic(req, res) {
     try {
+        const artistUser = await userModel.findById(req.user.id);
+        if (artistUser?.isSuspended) {
+            return res.status(403).json({
+                success: false,
+                message: "Your creator account has been suspended by administration. You cannot upload new music."
+            });
+        }
+
         const { title, genre, mood } = req.body;
 
 
@@ -97,6 +105,14 @@ async function createMusic(req, res) {
 
 async function createAlbum(req, res) {
     try {
+        const artistUser = await userModel.findById(req.user.id);
+        if (artistUser?.isSuspended) {
+            return res.status(403).json({
+                success: false,
+                message: "Your creator account has been suspended by administration. You cannot create albums."
+            });
+        }
+
         const { title, description, songs } = req.body;
         const coverImageFile = req.file;
 
@@ -547,22 +563,25 @@ async function getTrendingArtists(req, res) {
 async function getArtistMusic(req, res) {
     try {
         const artistId = req.params.id;
+        if (!mongoose.isValidObjectId(artistId)) {
+            return res.status(404).json({ success: false, message: "Invalid artist ID" });
+        }
 
         const artist = await userModel.findById(artistId);
-        if (!artist || artist.isSuspended) {
+        const isAdmin = req.user && req.user.role === 'admin';
+        const isOwner = req.user && String(req.user.id) === String(artistId);
+        if (!artist || (artist.isSuspended && !isAdmin && !isOwner)) {
             return res.status(403).json({ success: false, message: "Artist is unavailable or suspended" });
         }
-        
-        const isOwner = req.user && String(req.user.id) === String(artistId);
         const filter = { artist: artistId };
-        if (!isOwner) {
+        if (!isOwner && !isAdmin) {
             filter.isActive = { $ne: false };
             filter.isSuspended = { $ne: true };
         }
 
         const musics = await musicModel.find(filter)
             .sort({ createdAt: -1 })
-            .populate('artist', 'username firstName lastName profilePicture');
+            .populate('artist', 'username firstName lastName profilePicture isSuspended');
         res.status(200).json({
             success: true,
             message: "Artist music fetched successfully",
@@ -577,25 +596,28 @@ async function getArtistMusic(req, res) {
 async function getArtistAlbums(req, res) {
     try {
         const artistId = req.params.id;
+        if (!mongoose.isValidObjectId(artistId)) {
+            return res.status(404).json({ success: false, message: "Invalid artist ID" });
+        }
 
         const artist = await userModel.findById(artistId);
-        if (!artist || artist.isSuspended) {
+        const isAdmin = req.user && req.user.role === 'admin';
+        const isOwner = req.user && String(req.user.id) === String(artistId);
+        if (!artist || (artist.isSuspended && !isAdmin && !isOwner)) {
             return res.status(403).json({ success: false, message: "Artist is unavailable or suspended" });
         }
-        
-        const isOwner = req.user && String(req.user.id) === String(artistId);
         const filter = { artist: artistId };
-        if (!isOwner) {
+        if (!isOwner && !isAdmin) {
             filter.isActive = { $ne: false };
             filter.isSuspended = { $ne: true };
         }
 
         const albums = await albumModel.find(filter)
             .sort({ createdAt: -1 })
-            .populate('artist', 'username firstName lastName profilePicture')
+            .populate('artist', 'username firstName lastName profilePicture isSuspended')
             .populate({
                 path: 'songs',
-                match: isOwner ? {} : { isActive: { $ne: false }, isSuspended: { $ne: true } }
+                match: (isOwner || isAdmin) ? {} : { isActive: { $ne: false }, isSuspended: { $ne: true } }
             });
         res.status(200).json({
             success: true,
@@ -604,6 +626,35 @@ async function getArtistAlbums(req, res) {
         });
     } catch (error) {
         console.log(error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
+async function getArtistProfile(req, res) {
+    try {
+        const artistId = req.params.id;
+        if (!mongoose.isValidObjectId(artistId)) {
+            return res.status(404).json({ success: false, message: "Invalid artist ID" });
+        }
+
+        const artist = await userModel.findById(artistId).select('firstName lastName username role profilePicture bio isSuspended createdAt');
+        if (!artist) {
+            return res.status(404).json({ success: false, message: "Artist not found" });
+        }
+
+        const isAdmin = req.user && req.user.role === 'admin';
+        const isOwner = req.user && String(req.user.id) === String(artistId);
+        if (artist.isSuspended && !isAdmin && !isOwner) {
+            return res.status(403).json({ success: false, message: "Artist is unavailable or suspended" });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Artist profile fetched successfully",
+            data: artist,
+        });
+    } catch (error) {
+        console.error("Error in getArtistProfile:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 }
@@ -815,6 +866,7 @@ module.exports = {
     getArtistMusic,
     getArtistAlbums,
     getTrendingArtists,
+    getArtistProfile,
     getRecentlyPlayed,
     getLatestReleases,
     toggleMusicVisibility,

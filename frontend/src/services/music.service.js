@@ -27,6 +27,7 @@ export const musicService = {
     return api.get(`/music/trending-artists/${arg}`).then(unwrap);
   },
   getAlbum: (id) => api.get(`/music/albums/${id}`).then(unwrap),
+  getArtistProfile: (id) => api.get(`/music/artist/${id}/profile`).then(unwrap),
   getArtistMusic: (id) => api.get(`/music/artist/${id}/music`).then(unwrap),
   getArtistAlbums: (id) => api.get(`/music/artist/${id}/albums`).then(unwrap),
 

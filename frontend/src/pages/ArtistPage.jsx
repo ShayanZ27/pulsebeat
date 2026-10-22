@@ -13,22 +13,28 @@ import {
   UserCheck,
   UserPlus,
   Flag,
+  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import {
+  useGetArtistProfileQuery,
   useGetArtistMusicQuery,
   useGetArtistAlbumsQuery,
   useRecordPlayMutation,
   useGetLikedMusicQuery,
   useAddLikeMutation,
   useRemoveLikeMutation,
+  useAdminSuspendUserMutation,
+  useAdminUnsuspendUserMutation,
 } from '../store/api';
 import { playTracks, togglePlay, selectIsPlaying, selectCurrentTrack } from '../store/playerSlice';
+import { selectCurrentUser } from '../store/authSlice';
 import { selectAccentColor, selectAccentTextColor } from '../store/themeSlice';
 import TrackActionMenu from '../components/common/TrackActionMenu';
 import AddToPlaylistModal from '../components/common/AddToPlaylistModal';
 import ReportModal from '../components/common/ReportModal';
 import { PlayingOverlay } from '../components/common/PulseAnimations';
-import { formatTime } from '../utils/format';
+import { formatTime, getInitials } from '../utils/format';
 import { showToast } from '../utils/toast';
 
 export default function ArtistPage() {
@@ -39,20 +45,25 @@ export default function ArtistPage() {
   const accentTextColor = useSelector(selectAccentTextColor);
   const isPlaying = useSelector(selectIsPlaying);
   const currentTrack = useSelector(selectCurrentTrack);
+  const currentUser = useSelector(selectCurrentUser);
+  const isAdmin = currentUser?.role === 'admin';
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [playlistModalItem, setPlaylistModalItem] = useState(null);
   const [playlistModalType, setPlaylistModalType] = useState('track');
 
-  const { data: songs = [], isLoading: loadingSongs } = useGetArtistMusicQuery(id);
-  const { data: albums = [], isLoading: loadingAlbums } = useGetArtistAlbumsQuery(id);
+  const { data: artistProfile, isLoading: loadingProfile, error: profileError, refetch: refetchProfile } = useGetArtistProfileQuery(id);
+  const { data: songs = [], isLoading: loadingSongs, refetch: refetchSongs } = useGetArtistMusicQuery(id);
+  const { data: albums = [], isLoading: loadingAlbums, refetch: refetchAlbums } = useGetArtistAlbumsQuery(id);
   const { data: likedMusic = [] } = useGetLikedMusicQuery();
   const [recordPlay] = useRecordPlayMutation();
   const [addLike] = useAddLikeMutation();
   const [removeLike] = useRemoveLikeMutation();
+  const [adminSuspendUser] = useAdminSuspendUserMutation();
+  const [adminUnsuspendUser] = useAdminUnsuspendUserMutation();
 
-  const artistInfo = songs[0]?.artist || albums[0]?.artist;
+  const artistInfo = artistProfile || songs[0]?.artist || albums[0]?.artist;
   const artistName = artistInfo?.firstName
     ? `${artistInfo.firstName} ${artistInfo.lastName || ''}`.trim()
     : artistInfo?.username || 'PulseBeat Artist';
@@ -75,6 +86,26 @@ export default function ArtistPage() {
     dispatch(playTracks(songs, idx));
     if (song?._id && !String(song._id).startsWith('sample-')) {
       recordPlay(song._id).catch(() => {});
+    }
+  };
+
+  const handleAdminToggleSuspendArtist = async () => {
+    try {
+      if (artistInfo?.isSuspended) {
+        await adminUnsuspendUser(id).unwrap();
+        showToast.success('Artist unsuspended successfully');
+        refetchProfile();
+        refetchSongs();
+        refetchAlbums();
+      } else {
+        await adminSuspendUser(id).unwrap();
+        showToast.success('Artist account suspended');
+        refetchProfile();
+        refetchSongs();
+        refetchAlbums();
+      }
+    } catch (err) {
+      showToast.error(err?.data?.message || err?.message || 'Failed to update artist status');
     }
   };
 
@@ -104,6 +135,26 @@ export default function ArtistPage() {
     showToast(nextState ? `Following ${artistName}` : `Unfollowed ${artistName}`, 'info');
   };
 
+  if (!loadingProfile && (profileError?.status === 403 || (!isAdmin && artistInfo?.isSuspended))) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center space-y-4">
+        <div className="w-16 h-16 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400">
+          <ShieldAlert size={32} />
+        </div>
+        <h2 className="text-2xl font-playfair font-black text-txt">Artist Unavailable</h2>
+        <p className="text-sm font-space text-txt-sec max-w-md">
+          This artist profile is currently unavailable or suspended.
+        </p>
+        <button
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-sidebar border border-brd text-xs font-space font-bold uppercase tracking-wider text-txt hover:bg-elevated transition-colors"
+        >
+          <ArrowLeft size={14} /> Go Back
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <button
@@ -113,17 +164,36 @@ export default function ArtistPage() {
         <ArrowLeft size={16} /> Back
       </button>
 
+      {/* Admin Suspended Notice */}
+      {isAdmin && artistInfo?.isSuspended && (
+        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center gap-3 text-red-400">
+          <ShieldAlert size={20} className="shrink-0" />
+          <div className="flex-1 text-xs font-space">
+            <span className="font-bold">Artist Suspended:</span> This creator account has been suspended by an administrator and is hidden from public discovery and search.
+          </div>
+        </div>
+      )}
+
       {/* Artist Hero Header */}
-      <div className="relative rounded-3xl overflow-hidden p-8 md:p-12 border border-brd bg-gradient-to-br from-sidebar via-elevated to-sidebar shadow-md">
+      <div className="relative rounded-3xl overflow-hidden p-8 md:p-12 border border-brd bg-linear-to-br from-sidebar via-elevated to-sidebar shadow-md">
         <div className="absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl opacity-15 pointer-events-none" style={{ backgroundColor: accentColor }} />
 
         <div className="relative z-10 flex flex-col md:flex-row items-center md:items-end gap-6 md:gap-8 text-center md:text-left">
-          <div className="w-40 h-40 md:w-52 md:h-52 rounded-full overflow-hidden shadow-2xl border-4 border-sidebar shrink-0 bg-elevated">
-            <img
-              src={artistInfo?.profilePicture || 'https://picsum.photos/seed/artistprofile/400/400'}
-              alt={artistName}
-              className="w-full h-full object-cover"
-            />
+          <div className="w-40 h-40 md:w-52 md:h-52 rounded-full overflow-hidden shadow-2xl border-4 border-sidebar shrink-0 bg-elevated flex items-center justify-center">
+            {artistInfo?.profilePicture ? (
+              <img
+                src={artistInfo.profilePicture}
+                alt={artistName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div
+                className="w-full h-full flex items-center justify-center font-bold text-4xl md:text-6xl font-space select-none"
+                style={{ backgroundColor: `${accentColor}25`, color: accentColor }}
+              >
+                {getInitials(artistName)}
+              </div>
+            )}
           </div>
 
           <div className="flex-1 space-y-3">
@@ -134,6 +204,12 @@ export default function ArtistPage() {
             <h1 className="text-3xl md:text-6xl font-playfair font-black text-txt tracking-tight">
               {artistName}
             </h1>
+
+            {artistInfo?.bio && (
+              <p className="text-sm text-txt-sec font-space max-w-xl line-clamp-2">
+                {artistInfo.bio}
+              </p>
+            )}
 
             <p className="text-sm text-txt-sec font-space">
               {songs.length} Tracks • {albums.length} Albums • {totalPlays.toLocaleString()} total plays
@@ -175,14 +251,36 @@ export default function ArtistPage() {
                 {isFollowing ? 'Following' : 'Follow'}
               </button>
 
-              <button
-                onClick={() => setShowReportModal(true)}
-                className="w-12 h-12 rounded-full bg-sidebar border border-brd flex items-center justify-center text-txt-sec hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
-                title="Report Artist"
-                aria-label="Report Artist"
-              >
-                <Flag size={18} />
-              </button>
+              {isAdmin ? (
+                <button
+                  onClick={handleAdminToggleSuspendArtist}
+                  className={`h-12 px-5 rounded-full border flex items-center gap-2 text-xs font-space font-bold transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95 whitespace-nowrap ${
+                    artistInfo?.isSuspended
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                      : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
+                  }`}
+                  title={artistInfo?.isSuspended ? 'Unsuspend Artist' : 'Suspend Artist'}
+                >
+                  {artistInfo?.isSuspended ? (
+                    <>
+                      <ShieldCheck size={16} /> Unsuspend Artist
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert size={16} /> Suspend Artist
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  className="w-12 h-12 rounded-full bg-sidebar border border-brd flex items-center justify-center text-txt-sec hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/30 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                  title="Report Artist"
+                  aria-label="Report Artist"
+                >
+                  <Flag size={18} />
+                </button>
+              )}
             </div>
           </div>
         </div>

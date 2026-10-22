@@ -81,6 +81,16 @@ router.get('/artist/:id/albums',
     musicController.getArtistAlbums
 );
 
+router.get('/artist/:id/profile',
+    authMiddleware.authenticateUser,
+    musicController.getArtistProfile
+);
+
+router.get('/artist/:id',
+    authMiddleware.authenticateUser,
+    musicController.getArtistProfile
+);
+
 router.get('/recently-played',
     authMiddleware.authenticateUser,
     musicController.getRecentlyPlayed

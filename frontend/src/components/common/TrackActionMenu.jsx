@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Flag,
   FolderPlus,
@@ -12,6 +12,8 @@ import {
   MoreVertical,
   Share2,
   Trash2,
+  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   useAddLikeMutation,
@@ -20,8 +22,11 @@ import {
   useGetLikedMusicQuery,
   useGetLikedPlaylistsQuery,
   useRemoveLikeMutation,
+  useAdminHideContentMutation,
+  useAdminRestoreContentMutation,
 } from '../../store/api';
 import { addToQueue, playNext } from '../../store/playerSlice';
+import { selectCurrentUser } from '../../store/authSlice';
 import { showToast } from '../../utils/toast';
 import AddToPlaylistModal from './AddToPlaylistModal';
 import ReportModal from './ReportModal';
@@ -41,6 +46,9 @@ export default function TrackActionMenu({
 }) {
   const item = propItem || track;
   const dispatch = useDispatch();
+  const currentUser = useSelector(selectCurrentUser);
+  const isAdmin = currentUser?.role === 'admin';
+
   const [isOpen, setIsOpen] = useState(false);
   const [internalPlaylistOpen, setInternalPlaylistOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -50,6 +58,8 @@ export default function TrackActionMenu({
 
   const [addLike] = useAddLikeMutation();
   const [removeLike] = useRemoveLikeMutation();
+  const [adminHideContent] = useAdminHideContentMutation();
+  const [adminRestoreContent] = useAdminRestoreContentMutation();
 
   const isAlbum = itemType === 'album';
   const isPlaylist = itemType === 'playlist';
@@ -267,6 +277,23 @@ export default function TrackActionMenu({
     setIsReportModalOpen(true);
   };
 
+  const handleAdminToggleSuspend = async (e) => {
+    e.stopPropagation();
+    setIsOpen(false);
+    const contentType = isAlbum ? 'album' : 'music';
+    try {
+      if (item?.isSuspended) {
+        await adminRestoreContent({ contentId: itemId, type: contentType }).unwrap();
+        showToast.success(`${isAlbum ? 'Album' : 'Track'} restored successfully`);
+      } else {
+        await adminHideContent({ contentId: itemId, type: contentType }).unwrap();
+        showToast.success(`${isAlbum ? 'Album' : 'Track'} suspended`);
+      }
+    } catch (err) {
+      showToast.error(err?.data?.message || err?.message || 'Action failed');
+    }
+  };
+
   return (
     <>
       <button
@@ -395,16 +422,39 @@ export default function TrackActionMenu({
               <span className="text-left whitespace-nowrap flex-1">Share Link</span>
             </button>
 
-            {/* Report */}
+            {/* Report or Admin Suspend */}
             {itemType !== 'playlist' && (
-              <button
-                type="button"
-                onClick={handleReport}
-                className="w-full px-4 py-2.5 text-xs font-semibold text-txt hover:text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-3 cursor-pointer text-left whitespace-nowrap group/report"
-              >
-                <Flag size={15} className="shrink-0 text-txt-muted group-hover/report:text-red-400 transition-colors" />
-                <span className="text-left whitespace-nowrap flex-1">Report</span>
-              </button>
+              isAdmin ? (
+                <button
+                  type="button"
+                  onClick={handleAdminToggleSuspend}
+                  className={`w-full px-4 py-2.5 text-xs font-semibold transition-colors flex items-center gap-3 cursor-pointer text-left whitespace-nowrap ${
+                    item?.isSuspended
+                      ? 'text-emerald-400 hover:bg-emerald-500/10'
+                      : 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10'
+                  }`}
+                >
+                  {item?.isSuspended ? (
+                    <ShieldCheck size={15} className="shrink-0 text-emerald-400" />
+                  ) : (
+                    <ShieldAlert size={15} className="shrink-0 text-amber-400" />
+                  )}
+                  <span className="text-left whitespace-nowrap flex-1">
+                    {item?.isSuspended
+                      ? `Restore ${isAlbum ? 'Album' : 'Track'}`
+                      : `Suspend ${isAlbum ? 'Album' : 'Track'}`}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleReport}
+                  className="w-full px-4 py-2.5 text-xs font-semibold text-txt hover:text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-3 cursor-pointer text-left whitespace-nowrap group/report"
+                >
+                  <Flag size={15} className="shrink-0 text-txt-muted group-hover/report:text-red-400 transition-colors" />
+                  <span className="text-left whitespace-nowrap flex-1">Report</span>
+                </button>
+              )
             )}
           </div>,
           document.body

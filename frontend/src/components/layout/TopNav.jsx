@@ -31,7 +31,7 @@ import { useSearchQuery, useRecordPlayMutation } from '../../store/api';
 import TrackActionMenu from '../common/TrackActionMenu';
 import AddToPlaylistModal from '../common/AddToPlaylistModal';
 import { contrastText } from '../../utils/color';
-import { formatTime } from '../../utils/format';
+import { formatTime, getInitials } from '../../utils/format';
 import { selectCurrentUser } from '../../store/authSlice';
 
 export default function TopNav({
@@ -264,11 +264,20 @@ export default function TopNav({
                           onClick={() => handleSelectArtist(artist)}
                           className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-elevated transition-colors cursor-pointer group"
                         >
-                          <img
-                            src={artist.profilePicture || 'https://picsum.photos/seed/artist/80/80'}
-                            alt=""
-                            className="w-8 h-8 rounded-full object-cover shrink-0 shadow-sm"
-                          />
+                          {artist.profilePicture ? (
+                            <img
+                              src={artist.profilePicture}
+                              alt=""
+                              className="w-8 h-8 rounded-full object-cover shrink-0 shadow-sm"
+                            />
+                          ) : (
+                            <div
+                              className="w-8 h-8 rounded-full border border-brd flex items-center justify-center text-[10px] font-space font-bold shrink-0 select-none"
+                              style={{ backgroundColor: `${accentColor}25`, color: accentColor }}
+                            >
+                              {getInitials(artist.firstName ? `${artist.firstName} ${artist.lastName || ''}`.trim() : artist.username)}
+                            </div>
+                          )}
                           <p className="text-xs font-bold text-txt truncate group-hover:text-primary transition-colors">
                             {artist.firstName
                               ? `${artist.firstName} ${artist.lastName || ''}`.trim()
@@ -440,7 +449,7 @@ export default function TopNav({
         <button
           onClick={() => navigate('/profile')}
           className="w-10 h-10 rounded-full overflow-hidden border border-brd shadow-sm ml-2 cursor-pointer hover:border-primary transition-all flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/40 shrink-0"
-          title={`Profile (${user?.username || 'Listener'})`}
+          title={`Profile (${user?.role === 'admin' ? 'Administrator' : user?.role === 'artist' ? 'Artist' : 'Listener'})`}
           aria-label="View user profile"
         >
           {user?.profilePicture ? (

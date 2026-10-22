@@ -16,3 +16,8 @@ export function showToast(messageOrOptions, type = 'success') {
     );
   }
 }
+
+showToast.success = (msg) => showToast(msg, 'success');
+showToast.error = (msg) => showToast(msg, 'error');
+showToast.info = (msg) => showToast(msg, 'info');
+

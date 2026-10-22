@@ -8,6 +8,7 @@ import { musicService } from '../services/music.service';
 import { playlistService } from '../services/playlist.service';
 import { searchService } from '../services/search.service';
 import { userService } from '../services/user.service';
+import { adminService } from '../services/admin.service';
 
 /** Dispatched when an authenticated request comes back 401 (stale/expired cookie). */
 export const sessionExpired = createAction('auth/sessionExpired');
@@ -36,7 +37,7 @@ const noSessionHandling = { signOutOn401: false };
 export const pulsebeatApi = createApi({
   reducerPath: 'api',
   baseQuery: fakeBaseQuery(),
-  tagTypes: ['RecentlyPlayed', 'UserPlaylists', 'LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'Playlist', 'Album', 'ActivityFeed', 'UserProfile', 'ArtistMusic', 'ArtistAlbums'],
+  tagTypes: ['RecentlyPlayed', 'UserPlaylists', 'LikedMusic', 'LikedAlbums', 'LikedPlaylists', 'Playlist', 'Album', 'ActivityFeed', 'UserProfile', 'ArtistProfile', 'ArtistMusic', 'ArtistAlbums', 'AdminReports', 'AdminArtistRequests', 'AdminFeatured', 'Featured', 'AdminSuspended'],
   endpoints: (build) => ({
     /* ── Auth ── */
     login: build.mutation({ queryFn: fromService(authService.login, noSessionHandling) }),
@@ -49,7 +50,10 @@ export const pulsebeatApi = createApi({
     getTrendingMusic: build.query({ queryFn: fromService(musicService.getTrending) }),
     getTrendingAlbums: build.query({ queryFn: fromService(musicService.getTrendingAlbums) }),
     getTrendingArtists: build.query({ queryFn: fromService(musicService.getTrendingArtists) }),
-    getFeatured: build.query({ queryFn: fromService(musicService.getFeatured) }),
+    getFeatured: build.query({
+      queryFn: fromService(musicService.getFeatured),
+      providesTags: ['Featured'],
+    }),
     getRecentlyPlayed: build.query({
       queryFn: fromService(musicService.getRecentlyPlayed),
       providesTags: ['RecentlyPlayed'],
@@ -92,6 +96,10 @@ export const pulsebeatApi = createApi({
     getAlbumById: build.query({
       queryFn: fromService(musicService.getAlbum),
       providesTags: (result, error, id) => [{ type: 'Album', id }],
+    }),
+    getArtistProfile: build.query({
+      queryFn: fromService(musicService.getArtistProfile),
+      providesTags: (result, error, id) => [{ type: 'ArtistProfile', id }],
     }),
     getArtistMusic: build.query({
       queryFn: fromService(musicService.getArtistMusic),
@@ -167,7 +175,11 @@ export const pulsebeatApi = createApi({
 
     /* ── Search ── */
     search: build.query({
-      queryFn: fromService(({ query, type = 'all' }) => searchService.search(query, type)),
+      queryFn: fromService((arg) => {
+        const query = typeof arg === 'string' ? arg : arg?.query;
+        const type = typeof arg === 'object' && arg?.type ? arg.type : 'all';
+        return searchService.search(query, type);
+      }),
     }),
 
     /* ── Playback ── */
@@ -190,6 +202,70 @@ export const pulsebeatApi = createApi({
     }),
     reportContent: build.mutation({
       queryFn: fromService(userService.reportContent),
+      invalidatesTags: ['AdminReports'],
+    }),
+
+    /* ── Admin Endpoints ── */
+    getAdminReports: build.query({
+      queryFn: fromService(adminService.getReports),
+      providesTags: ['AdminReports'],
+    }),
+    resolveAdminReport: build.mutation({
+      queryFn: fromService(adminService.resolveReport),
+      invalidatesTags: ['AdminReports'],
+    }),
+
+    getAdminArtistRequests: build.query({
+      queryFn: fromService(adminService.getArtistRequests),
+      providesTags: ['AdminArtistRequests'],
+    }),
+    approveArtistRequest: build.mutation({
+      queryFn: fromService(adminService.approveArtist),
+      invalidatesTags: ['AdminArtistRequests', 'UserProfile'],
+    }),
+    rejectArtistRequest: build.mutation({
+      queryFn: fromService(adminService.rejectArtist),
+      invalidatesTags: ['AdminArtistRequests'],
+    }),
+
+    adminSuspendUser: build.mutation({
+      queryFn: fromService(adminService.suspendUser),
+      invalidatesTags: ['AdminReports', 'UserProfile', 'AdminSuspended', 'ArtistProfile', 'ArtistMusic', 'ArtistAlbums'],
+    }),
+    adminUnsuspendUser: build.mutation({
+      queryFn: fromService(adminService.unsuspendUser),
+      invalidatesTags: ['AdminReports', 'UserProfile', 'AdminSuspended', 'ArtistProfile', 'ArtistMusic', 'ArtistAlbums'],
+    }),
+
+    adminHideContent: build.mutation({
+      queryFn: fromService(adminService.hideContent),
+      invalidatesTags: ['AdminReports', 'Album', 'Playlist', 'ArtistMusic', 'ArtistAlbums', 'AdminSuspended'],
+    }),
+    adminRestoreContent: build.mutation({
+      queryFn: fromService(adminService.restoreContent),
+      invalidatesTags: ['AdminReports', 'Album', 'Playlist', 'ArtistMusic', 'ArtistAlbums', 'AdminSuspended'],
+    }),
+
+    getAdminFeatured: build.query({
+      queryFn: fromService(adminService.getFeaturedContent),
+      providesTags: ['AdminFeatured'],
+    }),
+    addAdminFeatured: build.mutation({
+      queryFn: fromService(adminService.addFeaturedContent),
+      invalidatesTags: ['AdminFeatured', 'Featured'],
+    }),
+    removeAdminFeatured: build.mutation({
+      queryFn: fromService(adminService.removeFeaturedContent),
+      invalidatesTags: ['AdminFeatured', 'Featured'],
+    }),
+    reorderAdminFeatured: build.mutation({
+      queryFn: fromService(adminService.reorderFeaturedContent),
+      invalidatesTags: ['AdminFeatured', 'Featured'],
+    }),
+
+    getAdminSuspended: build.query({
+      queryFn: fromService(adminService.getSuspendedContent),
+      providesTags: ['AdminSuspended'],
     }),
   }),
 });
@@ -214,6 +290,7 @@ export const {
   useGetCommunityPlaylistsQuery,
   useGetActivityFeedQuery,
   useGetAlbumByIdQuery,
+  useGetArtistProfileQuery,
   useGetArtistMusicQuery,
   useGetArtistAlbumsQuery,
   useGetAllMusicQuery,
@@ -234,4 +311,18 @@ export const {
   useUpdateUserProfileMutation,
   useRequestArtistRoleMutation,
   useReportContentMutation,
+  useGetAdminReportsQuery,
+  useResolveAdminReportMutation,
+  useGetAdminArtistRequestsQuery,
+  useApproveArtistRequestMutation,
+  useRejectArtistRequestMutation,
+  useAdminSuspendUserMutation,
+  useAdminUnsuspendUserMutation,
+  useAdminHideContentMutation,
+  useAdminRestoreContentMutation,
+  useGetAdminFeaturedQuery,
+  useAddAdminFeaturedMutation,
+  useRemoveAdminFeaturedMutation,
+  useReorderAdminFeaturedMutation,
+  useGetAdminSuspendedQuery,
 } = pulsebeatApi;

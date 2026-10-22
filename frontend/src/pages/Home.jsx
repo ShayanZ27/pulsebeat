@@ -18,7 +18,7 @@ import {
   selectAccentColor,
   selectAccentTextColor,
 } from '../store/themeSlice';
-import { getDisplayName, getGreeting } from '../utils/format';
+import { getDisplayName, getGreeting, getInitials } from '../utils/format';
 import TrackActionMenu from '../components/common/TrackActionMenu';
 import AddToPlaylistModal from '../components/common/AddToPlaylistModal';
 import { PlayingOverlay } from '../components/common/PulseAnimations';
@@ -641,15 +641,21 @@ const HomePage = () => {
               onClick={(e) => handleArtistClick(artistItem, e)}
               className="shrink-0 w-[170px] group cursor-pointer transition-all duration-300 hover:-translate-y-2 flex flex-col items-center text-center"
             >
-              <div className="relative w-[150px] h-[150px] rounded-full overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-all duration-300 border-2 border-transparent group-hover:border-brd bg-sidebar">
-                <img
-                  src={artistAvatar}
-                  alt={artistName}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                  onError={(e) => {
-                    e.currentTarget.src = `https://picsum.photos/seed/artist${i}/300/300`;
-                  }}
-                />
+              <div className="relative w-[150px] h-[150px] rounded-full overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-all duration-300 border-2 border-transparent group-hover:border-brd bg-sidebar flex items-center justify-center">
+                {details.profilePicture ? (
+                  <img
+                    src={details.profilePicture}
+                    alt={artistName}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full flex items-center justify-center font-bold text-3xl font-space select-none"
+                    style={{ backgroundColor: `${accentColor}25`, color: accentColor }}
+                  >
+                    {getInitials(artistName)}
+                  </div>
+                )}
               </div>
               <h3 className="text-base font-bold text-txt truncate w-full group-hover:text-primary transition-colors flex items-center justify-center gap-1.5">
                 <span className="truncate">{artistName}</span>

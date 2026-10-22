@@ -262,7 +262,7 @@ export default function Sidebar() {
           </p>
           <p className="text-[11px] font-semibold flex items-center gap-1.5 text-txt-sec">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: accentColor }} />
-            {user?.role === 'artist' ? 'Artist' : 'Listener'}
+            {user?.role === 'admin' ? 'Administrator' : user?.role === 'artist' ? 'Artist' : 'Listener'}
           </p>
         </div>
         <button

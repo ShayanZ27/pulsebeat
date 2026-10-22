@@ -26,7 +26,7 @@ function authenticateUser(req, res, next) {
 
     try {
         const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-        if (decodedToken.role !== 'user' && decodedToken.role !== 'artist') {
+        if (decodedToken.role !== 'user' && decodedToken.role !== 'artist' && decodedToken.role !== 'admin') {
             return res.status(403).json({ success: false, message: "Unauthorized role" });
         }
         req.user = decodedToken;

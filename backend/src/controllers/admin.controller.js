@@ -3,12 +3,22 @@ const userModel = require('../models/user.model');
 const musicModel = require('../models/music.model');
 const albumModel = require('../models/album.model');
 const reportModel = require('../models/report.model');
+const playlistModel = require('../models/playlist.model');
 
 async function getAllArtistRequests(req, res) {
     try {
-        const requests = await artistRequestModel.find({ status: 'pending' })
-            .populate('user', 'username email profilePicture')
-            .sort({ createdAt: 1 });
+        const { status } = req.query;
+        let query = {};
+        if (status && status !== 'all') {
+            query.status = status.toLowerCase();
+        } else if (!status) {
+            query.status = 'pending';
+        }
+
+        const requests = await artistRequestModel.find(query)
+            .populate('user', 'username email profilePicture firstName lastName')
+            .populate('reviewedBy', 'username email profilePicture firstName lastName')
+            .sort({ createdAt: -1 });
 
         res.status(200).json({
             success: true,
@@ -251,7 +261,7 @@ async function fetchReports(req, res) {
         if (status) {
             if (status.toLowerCase() === 'open') {
                 query.status = 'pending';
-            } else {
+            } else if (status.toLowerCase() !== 'all') {
                 query.status = status.toLowerCase(); // 'resolved' or 'dismissed'
             }
         }
@@ -263,9 +273,18 @@ async function fetchReports(req, res) {
         }
 
         const reports = await reportModel.find(query)
-            .populate('reporter', 'username email profilePicture')
-            .populate('reportedContent') // Polymorphic populate!
-            .sort({ createdAt: 1 });
+            .populate('reporter', 'username email profilePicture firstName lastName')
+            .populate('reviewedBy', 'username email profilePicture firstName lastName')
+            .populate({
+                path: 'reportedContent',
+                options: { strictPopulate: false },
+                populate: {
+                    path: 'artist',
+                    select: 'username firstName lastName profilePicture',
+                    options: { strictPopulate: false }
+                }
+            })
+            .sort({ createdAt: -1 });
 
         res.status(200).json({ success: true, data: reports });
     } catch (error) {
@@ -309,6 +328,160 @@ async function resolveReport(req, res) {
     }
 }
 
+async function getFeaturedContent(req, res) {
+    try {
+        const [tracks, albums, playlists] = await Promise.all([
+            musicModel.find({ isFeatured: true })
+                .populate('artist', 'username firstName lastName profilePicture')
+                .lean(),
+            albumModel.find({ isFeatured: true })
+                .populate('artist', 'username firstName lastName profilePicture')
+                .lean(),
+            playlistModel.find({ isFeatured: true })
+                .populate('owner', 'username firstName lastName profilePicture')
+                .lean(),
+        ]);
+
+        const items = [
+            ...tracks.map(t => ({ ...t, contentType: 'music' })),
+            ...albums.map(a => ({ ...a, contentType: 'album' })),
+            ...playlists.map(p => ({ ...p, contentType: 'playlist' })),
+        ].sort((a, b) => (a.featuredOrder ?? 0) - (b.featuredOrder ?? 0));
+
+        res.status(200).json({ success: true, data: items });
+    } catch (error) {
+        console.error("Error in getFeaturedContent:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
+async function addFeaturedContent(req, res) {
+    try {
+        const { contentId, contentType } = req.body;
+        if (!contentId || !contentType) {
+            return res.status(400).json({ success: false, message: "contentId and contentType are required" });
+        }
+
+        let model;
+        if (contentType === 'music') model = musicModel;
+        else if (contentType === 'album') model = albumModel;
+        else if (contentType === 'playlist') model = playlistModel;
+        else return res.status(400).json({ success: false, message: "Invalid contentType. Must be 'music', 'album', or 'playlist'" });
+
+        const item = await model.findById(contentId);
+        if (!item) {
+            return res.status(404).json({ success: false, message: `${contentType} not found` });
+        }
+
+        const [c1, c2, c3] = await Promise.all([
+            musicModel.countDocuments({ isFeatured: true }),
+            albumModel.countDocuments({ isFeatured: true }),
+            playlistModel.countDocuments({ isFeatured: true })
+        ]);
+
+        item.isFeatured = true;
+        item.featuredOrder = c1 + c2 + c3;
+        await item.save();
+
+        res.status(200).json({ success: true, message: `${contentType} pinned to featured showcase`, data: item });
+    } catch (error) {
+        console.error("Error in addFeaturedContent:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
+async function removeFeaturedContent(req, res) {
+    try {
+        const { contentId } = req.params;
+        const type = (req.query.type || req.body?.contentType || '').toLowerCase();
+
+        let model;
+        if (type === 'music') model = musicModel;
+        else if (type === 'album') model = albumModel;
+        else if (type === 'playlist') model = playlistModel;
+        else return res.status(400).json({ success: false, message: "Invalid type. Must be 'music', 'album', or 'playlist'" });
+
+        const item = await model.findById(contentId);
+        if (!item) {
+            return res.status(404).json({ success: false, message: "Item not found" });
+        }
+
+        item.isFeatured = false;
+        item.featuredOrder = 0;
+        await item.save();
+
+        res.status(200).json({ success: true, message: "Item unpinned from featured", data: item });
+    } catch (error) {
+        console.error("Error in removeFeaturedContent:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
+async function reorderFeaturedContent(req, res) {
+    try {
+        const { items } = req.body;
+        if (!Array.isArray(items)) {
+            return res.status(400).json({ success: false, message: "Items array is required" });
+        }
+
+        const updates = items.map(({ id, contentType, featuredOrder }) => {
+            let model;
+            if (contentType === 'music') model = musicModel;
+            else if (contentType === 'album') model = albumModel;
+            else if (contentType === 'playlist') model = playlistModel;
+            if (!model || !id) return null;
+            return model.findByIdAndUpdate(id, { featuredOrder: Number(featuredOrder) || 0 });
+        }).filter(Boolean);
+
+        await Promise.all(updates);
+
+        res.status(200).json({ success: true, message: "Featured order updated successfully" });
+    } catch (error) {
+        console.error("Error in reorderFeaturedContent:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
+async function getSuspendedContent(req, res) {
+    try {
+        const type = req.query.type?.toLowerCase() || 'all';
+
+        const result = {
+            tracks: [],
+            albums: [],
+            artists: []
+        };
+
+        if (type === 'all' || type === 'tracks' || type === 'track' || type === 'music') {
+            result.tracks = await musicModel.find({ isSuspended: true })
+                .populate('artist', 'username firstName lastName profilePicture')
+                .sort({ updatedAt: -1 });
+        }
+
+        if (type === 'all' || type === 'albums' || type === 'album') {
+            result.albums = await albumModel.find({ isSuspended: true })
+                .populate('artist', 'username firstName lastName profilePicture')
+                .populate('songs', 'title duration')
+                .sort({ updatedAt: -1 });
+        }
+
+        if (type === 'all' || type === 'artists' || type === 'artist') {
+            result.artists = await userModel.find({ isSuspended: true, role: 'artist' })
+                .select('-password')
+                .sort({ updatedAt: -1 });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "Suspended content fetched successfully",
+            data: result
+        });
+    } catch (error) {
+        console.error("Error in getSuspendedContent:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+}
+
 module.exports = {
     getAllArtistRequests,
     approveArtist,
@@ -318,5 +491,10 @@ module.exports = {
     hideContent,
     restoreContent,
     fetchReports,
-    resolveReport
+    resolveReport,
+    getFeaturedContent,
+    addFeaturedContent,
+    removeFeaturedContent,
+    reorderFeaturedContent,
+    getSuspendedContent
 };

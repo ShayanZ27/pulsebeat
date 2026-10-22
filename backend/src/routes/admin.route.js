@@ -49,4 +49,29 @@ router.put('/resolve-report/:reportId',
     adminController.resolveReport
 );
 
+router.get('/featured',
+    authMiddleware.authenticateAdmin,
+    adminController.getFeaturedContent
+);
+
+router.post('/featured',
+    authMiddleware.authenticateAdmin,
+    adminController.addFeaturedContent
+);
+
+router.delete('/featured/:contentId',
+    authMiddleware.authenticateAdmin,
+    adminController.removeFeaturedContent
+);
+
+router.put('/featured/reorder',
+    authMiddleware.authenticateAdmin,
+    adminController.reorderFeaturedContent
+);
+
+router.get('/suspended',
+    authMiddleware.authenticateAdmin,
+    adminController.getSuspendedContent
+);
+
 module.exports = router;
