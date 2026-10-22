@@ -33,5 +33,9 @@ app.use('/api/admin', adminRoute);
 app.use('/api/activity', activityRoute);
 app.use('/api/featured', featuredRoute);
 
+// Lightweight health check endpoint for UptimeRobot / pingers (zero DB overhead)
+app.get(['/health', '/api/health'], (req, res) => {
+    res.status(200).json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
+});
 
 module.exports = app;
