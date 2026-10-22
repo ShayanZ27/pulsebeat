@@ -44,10 +44,20 @@ async function registerUser(req, res) {
             process.env.JWT_SECRET,
         );
 
-        res.cookie("token", token)
+        const isProduction = process.env.NODE_ENV === 'production';
+        const cookieOptions = {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        };
+
+        res.cookie("token", token, cookieOptions);
 
         return res.status(201).json({
-            message: "User created successfully", user: {
+            message: "User created successfully",
+            token,
+            user: {
                 _id: user._id,
                 firstName: user.firstName,
                 lastName: user.lastName,
@@ -87,10 +97,20 @@ async function loginUser(req, res) {
             process.env.JWT_SECRET,
         );
 
-        res.cookie("token", token)
+        const isProduction = process.env.NODE_ENV === 'production';
+        const cookieOptions = {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        };
+
+        res.cookie("token", token, cookieOptions);
 
         return res.status(200).json({
-            message: "User logged in successfully", user: {
+            message: "User logged in successfully",
+            token,
+            user: {
                 _id: user._id,
                 firstName: user.firstName,
                 lastName: user.lastName,
@@ -109,7 +129,12 @@ async function loginUser(req, res) {
 
 async function logoutUser(req, res) {
     try {
-        res.clearCookie("token");
+        const isProduction = process.env.NODE_ENV === 'production';
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? 'none' : 'lax',
+        });
         return res.status(200).json({ message: "User logged out successfully" });
     } catch (error) {
         return res.status(500).json({ message: "Internal server error", error });

@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 
 function authenticateArtist(req, res, next) {
-    const token = req.cookies.token;
+    const token = req.cookies.token || req.headers.authorization?.replace(/^Bearer\s+/i, '');
     if (!token) {
         return res.status(401).json({ success: false, message: "Unauthorized" });
     }
@@ -19,7 +19,7 @@ function authenticateArtist(req, res, next) {
 }
 
 function authenticateUser(req, res, next) {
-    const token = req.cookies.token;
+    const token = req.cookies.token || req.headers.authorization?.replace(/^Bearer\s+/i, '');
     if (!token) {
         return res.status(401).json({ success: false, message: "Unauthorized" });
     }
@@ -37,7 +37,7 @@ function authenticateUser(req, res, next) {
 }
 
 function authenticateAdmin(req, res, next) {
-    const token = req.cookies.token;
+    const token = req.cookies.token || req.headers.authorization?.replace(/^Bearer\s+/i, '');
     if (!token) {
         return res.status(401).json({ success: false, message: "Unauthorized" });
     }
