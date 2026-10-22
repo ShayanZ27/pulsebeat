@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { CheckCircle2, Disc, Pause, Play, Sparkles, Star } from 'lucide-react';
+import { CheckCircle2, Disc, Pause, Play, Sparkles, Star, TrendingUp } from 'lucide-react';
 import {
   useGetCommunityPlaylistsQuery,
   useGetFeaturedQuery,
@@ -217,7 +217,7 @@ const HomePage = () => {
 
   // Live song collections with graceful fallbacks
   const trendingTracks = trendingData.length > 0 ? trendingData : fallbackRecentTracks;
-  const recentTracks = recentData.length > 0 ? recentData : trendingTracks.slice(0, 6);
+  const recentTracks = recentData;
 
   // Combine live data with graceful fallbacks for horizontal rows
   const displayPlaylists = communityPlaylists.length > 0 ? communityPlaylists : fallbackMixes;
@@ -448,11 +448,74 @@ const HomePage = () => {
       </section>
 
       {/* ── Recently Played ── */}
+      {recentTracks.length > 0 && (
+        <HorizontalSlider
+          title="Recently Played"
+          accentColor={accentColor}
+        >
+          {recentTracks.map((item, i) => {
+            const trackTitle = item.title || 'Untitled Track';
+            const trackArtist = getDisplayName(item.artist, item.artistName || 'Artist');
+            const trackCover = item.coverImage || (item.img ? `https://picsum.photos/seed/${item.img}/300/300` : `https://picsum.photos/seed/${i}/300/300`);
+            const isThisPlaying = currentTrack?._id === item._id && isPlaying;
+
+            return (
+              <div
+                key={item._id || i}
+                onClick={(e) => handlePlaySong(item, e)}
+                className="shrink-0 w-[180px] group cursor-pointer transition-all duration-300 hover:-translate-y-2"
+              >
+                <div className="relative w-full aspect-square rounded-[24px] overflow-hidden mb-4 shadow-sm group-hover:shadow-xl transition-shadow duration-300 border border-transparent group-hover:border-brd">
+                  <img
+                    src={trackCover}
+                    alt={trackTitle}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+                  {isThisPlaying && (
+                    <PlayingOverlay size={28} rounded="rounded-[24px]" color={accentColor} />
+                  )}
+
+                  {/* 3-dot Action Menu (appears on hover) */}
+                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                    <TrackActionMenu
+                      item={item}
+                      itemType="track"
+                      onOpenPlaylistModal={(trackItem) => {
+                        setPlaylistModalItem(trackItem);
+                        setPlaylistModalType('track');
+                      }}
+                      triggerClassName="w-8 h-8 rounded-full bg-black/60 hover:bg-black/90 backdrop-blur-md text-white flex items-center justify-center transition-all shadow-md"
+                    />
+                  </div>
+
+                  <button
+                    onClick={(e) => handlePlaySong(item, e)}
+                    className="absolute bottom-4 right-4 w-12 h-12 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300 ease-out shadow-lg cursor-pointer"
+                    style={{ backgroundColor: accentColor, color: accentTextColor }}
+                    aria-label={`Play ${trackTitle}`}
+                  >
+                    <Play size={20} fill={accentTextColor} className="ml-1" />
+                  </button>
+                </div>
+                <h3 className="text-base font-bold text-txt truncate mb-0.5 group-hover:text-primary transition-colors">
+                  {trackTitle}
+                </h3>
+                <p className="text-sm font-medium text-txt-muted truncate">{trackArtist}</p>
+              </div>
+            );
+          })}
+        </HorizontalSlider>
+      )}
+
+      {/* ── Trending Now ── */}
       <HorizontalSlider
-        title="Recently Played"
+        title="Trending Now"
+        icon={<TrendingUp size={20} style={{ color: accentColor }} className="opacity-70" />}
         accentColor={accentColor}
+        viewAllLink="/discover/trending"
       >
-        {recentTracks.map((item, i) => {
+        {trendingTracks.map((item, i) => {
           const trackTitle = item.title || 'Untitled Track';
           const trackArtist = getDisplayName(item.artist, item.artistName || 'Artist');
           const trackCover = item.coverImage || (item.img ? `https://picsum.photos/seed/${item.img}/300/300` : `https://picsum.photos/seed/${i}/300/300`);
