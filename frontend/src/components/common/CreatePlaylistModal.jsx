@@ -15,7 +15,12 @@ import { selectAccentColor, selectAccentTextColor } from '../../store/themeSlice
 import { showToast } from '../../utils/toast';
 import { HeartbeatLoader } from './PulseAnimations';
 
-export default function CreatePlaylistModal({ isOpen = false, onClose }) {
+export default function CreatePlaylistModal({
+  isOpen = false,
+  onClose,
+  initialName = '',
+  initialDescription = '',
+}) {
   const navigate = useNavigate();
   const accentColor = useSelector(selectAccentColor);
   const accentTextColor = useSelector(selectAccentTextColor);
@@ -33,9 +38,9 @@ export default function CreatePlaylistModal({ isOpen = false, onClose }) {
   // Set default suggested playlist name when modal opens
   useEffect(() => {
     if (isOpen) {
-      const defaultName = `My Playlist #${(userPlaylists?.length || 0) + 1}`;
+      const defaultName = initialName || `My Playlist #${(userPlaylists?.length || 0) + 1}`;
       setName(defaultName);
-      setDescription('');
+      setDescription(initialDescription || '');
       setIsPublic(true);
       setError(null);
 
@@ -47,7 +52,7 @@ export default function CreatePlaylistModal({ isOpen = false, onClose }) {
         }
       }, 50);
     }
-  }, [isOpen, userPlaylists?.length]);
+  }, [isOpen, initialName, initialDescription, userPlaylists?.length]);
 
   // Handle Escape key
   useEffect(() => {

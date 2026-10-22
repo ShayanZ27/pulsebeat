@@ -9,6 +9,7 @@ import {
   Library,
   LogOut,
   Plus,
+  Sparkles,
   Star,
   TrendingUp,
 } from 'lucide-react';
@@ -20,11 +21,11 @@ import { LogoPulseSVG, SquiggleLineSVG } from '../icons/LineArt';
 import CreatePlaylistModal from '../common/CreatePlaylistModal';
 
 const fallbackPlaylists = [
-  { name: 'Chill Vibes', color: '#C6F24E' },
-  { name: 'Late Night Drive', color: '#8B5CF6' },
-  { name: 'Workout Mix', color: '#EF4444' },
-  { name: 'Focus Mode', color: '#3B82F6' },
-  { name: 'Anime Hits', color: '#EC4899' },
+  { name: 'Chill Vibes', color: '#C6F24E', description: 'Relaxing beats and mellow rhythms to unwind' },
+  { name: 'Late Night Drive', color: '#8B5CF6', description: 'Moody neon synth, synthwave & late night lofi' },
+  { name: 'Workout Mix', color: '#EF4444', description: 'High-energy beats to power through your workout' },
+  { name: 'Focus Mode', color: '#3B82F6', description: 'Deep concentration & instrumental flow state' },
+  { name: 'Anime Hits', color: '#EC4899', description: 'Iconic anime openings, epic themes & Japanese hits' },
 ];
 
 const playlistColors = ['#C6F24E', '#8B5CF6', '#EF4444', '#3B82F6', '#EC4899', '#F59E0B', '#10B981'];
@@ -37,26 +38,23 @@ export default function Sidebar() {
   const user = useSelector(selectCurrentUser);
   const [logout] = useLogoutMutation();
   const [recordPlay] = useRecordPlayMutation();
-  const { data: userPlaylists = [] } = useGetUserPlaylistsQuery();
+  const { data: userPlaylists = [], isLoading: isLoadingPlaylists } = useGetUserPlaylistsQuery();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedIdea, setSelectedIdea] = useState(null);
 
-  const playlistsToDisplay = userPlaylists.length > 0
-    ? userPlaylists.map((pl, i) => ({
-        _id: pl._id,
-        name: pl.name,
-        songs: pl.songs || [],
-        color: playlistColors[i % playlistColors.length],
-      }))
-    : fallbackPlaylists;
+  const handleCreateWithIdea = (idea) => {
+    setSelectedIdea(idea);
+    setShowCreateModal(true);
+  };
 
-  const handlePlaylistClick = (pl) => {
-    if (pl?.songs?.length > 0) {
-      dispatch(playTracks(pl.songs, 0));
-      const first = pl.songs[0];
-      if (first?._id && !String(first._id).startsWith('sample-')) {
-        recordPlay(first._id).catch(() => {});
-      }
-    }
+  const handleOpenCreateModal = () => {
+    setSelectedIdea(null);
+    setShowCreateModal(true);
+  };
+
+  const handleCloseCreateModal = () => {
+    setShowCreateModal(false);
+    setSelectedIdea(null);
   };
 
   return (
@@ -192,48 +190,96 @@ export default function Sidebar() {
         <div className="flex items-center justify-between mb-4">
           <p className="text-[11px] font-space font-bold uppercase tracking-widest" style={{ color: accentColor }}>Playlists</p>
           <button
-            onClick={() => setShowCreateModal(true)}
-            className="text-txt-muted hover:text-primary transition-colors p-1"
+            onClick={handleOpenCreateModal}
+            className="text-txt-muted hover:text-primary transition-colors p-1 cursor-pointer"
             title="Create playlist"
             aria-label="Create playlist"
           >
             <Plus size={16} />
           </button>
         </div>
-        <div className="space-y-3 text-sm font-medium pb-4">
-          {playlistsToDisplay.map((pl, i) => (
-            <NavLink
-              key={pl._id || i}
-              to={pl._id ? `/playlist/${pl._id}` : '#'}
-              onClick={(e) => {
-                if (!pl._id) {
-                  e.preventDefault();
-                  handlePlaylistClick(pl);
-                }
-              }}
-              className={({ isActive }) =>
-                `flex items-center justify-between gap-3 cursor-pointer transition-colors group select-none py-0.5 ${
-                  isActive ? 'font-bold' : 'text-txt-sec hover:text-primary'
-                }`
-              }
-              style={({ isActive }) => (isActive ? { color: accentColor } : undefined)}
-              title={pl.songs?.length ? `${pl.name} (${pl.songs.length} songs)` : pl.name}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span
-                  className="w-2 h-2 rounded-full flex-shrink-0 group-hover:scale-125 transition-transform shadow-sm"
-                  style={{ backgroundColor: pl.color }}
-                />
-                <span className="truncate">{pl.name}</span>
+
+        {isLoadingPlaylists ? (
+          <div className="space-y-3 pb-4">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="flex items-center gap-3 py-1 animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-elevated" />
+                <span className="h-3 bg-elevated rounded-md w-28" />
               </div>
-              {pl.songs?.length > 0 && (
-                <span className="text-[10px] font-space text-txt-muted opacity-0 group-hover:opacity-100 transition-opacity">
-                  {pl.songs.length}
-                </span>
-              )}
-            </NavLink>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : userPlaylists.length > 0 ? (
+          <div className="space-y-3 text-sm font-medium pb-4">
+            {userPlaylists.map((pl, i) => (
+              <NavLink
+                key={pl._id}
+                to={`/playlist/${pl._id}`}
+                className={({ isActive }) =>
+                  `flex items-center justify-between gap-3 cursor-pointer transition-colors group select-none py-0.5 ${
+                    isActive ? 'font-bold' : 'text-txt-sec hover:text-primary'
+                  }`
+                }
+                style={({ isActive }) => (isActive ? { color: accentColor } : undefined)}
+                title={pl.songs?.length ? `${pl.name} (${pl.songs.length} songs)` : pl.name}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0 group-hover:scale-125 transition-transform shadow-sm"
+                    style={{ backgroundColor: playlistColors[i % playlistColors.length] }}
+                  />
+                  <span className="truncate">{pl.name}</span>
+                </div>
+                {pl.songs?.length > 0 && (
+                  <span className="text-[10px] font-space text-txt-muted opacity-0 group-hover:opacity-100 transition-opacity">
+                    {pl.songs.length}
+                  </span>
+                )}
+              </NavLink>
+            ))}
+          </div>
+        ) : (
+          <div className="pb-4 space-y-2">
+            {/* Friendly guidance banner */}
+            <div className="p-2.5 rounded-2xl bg-elevated/50 border border-dashed border-brd/80 text-left">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-txt">
+                <Sparkles size={13} style={{ color: accentColor }} className="shrink-0" />
+                <span>You don't have a playlist yet</span>
+              </div>
+              <p className="text-[11px] text-txt-muted mt-1 leading-snug">
+                They can be like one of these:
+              </p>
+            </div>
+
+            {/* Clickable Starter Ideas */}
+            <div className="space-y-0.5">
+              {fallbackPlaylists.map((idea) => (
+                <button
+                  key={idea.name}
+                  type="button"
+                  onClick={() => handleCreateWithIdea(idea)}
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-left text-xs font-medium text-txt-sec hover:text-txt hover:bg-elevated/70 border border-transparent hover:border-brd/60 transition-all group cursor-pointer"
+                  title={`Create "${idea.name}" playlist`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0 group-hover:scale-125 transition-transform shadow-sm opacity-75 group-hover:opacity-100"
+                      style={{ backgroundColor: idea.color }}
+                    />
+                    <span className="truncate group-hover:translate-x-0.5 transition-transform">
+                      {idea.name}
+                    </span>
+                  </div>
+                  <span
+                    className="w-4 h-4 rounded-md flex items-center justify-center shrink-0 opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-all"
+                    style={{ backgroundColor: `${accentColor}25`, color: accentColor }}
+                  >
+                    <Plus size={11} />
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Profile */}
@@ -283,7 +329,9 @@ export default function Sidebar() {
       {showCreateModal && (
         <CreatePlaylistModal
           isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
+          initialName={selectedIdea?.name || ''}
+          initialDescription={selectedIdea?.description || ''}
+          onClose={handleCloseCreateModal}
         />
       )}
     </aside>
