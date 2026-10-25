@@ -52,10 +52,6 @@ export default function FeaturedShowcase({
   const [isPaused, setIsPaused] = useState(false);
   const [timerKey, setTimerKey] = useState(0);
 
-  if (!slides?.length) return null;
-
-  const count = slides.length;
-
   useEffect(() => {
     if (prevIndex === null) return;
     const t = setTimeout(() => {
@@ -63,6 +59,10 @@ export default function FeaturedShowcase({
     }, 450);
     return () => clearTimeout(t);
   }, [index, prevIndex]);
+
+  if (!slides?.length) return null;
+
+  const count = slides.length;
 
   const goTo = (targetIndex, dir) => {
     if (targetIndex === index) return;

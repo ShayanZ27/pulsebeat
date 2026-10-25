@@ -46,7 +46,7 @@ export default function AlbumPage() {
   const [addLike] = useAddLikeMutation();
   const [removeLike] = useRemoveLikeMutation();
 
-  const songs = album?.songs || [];
+  const songs = (album?.songs || []).filter(Boolean);
   const isCurrentlyPlayingAlbum = songs.some(s => s._id === currentTrack?._id) && isPlaying;
   const isAlbumLiked = likedAlbums.some(a => {
     const albId = a.targetId?._id || a.targetId?.id || a.targetId || a._id;
