@@ -9,7 +9,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-Express%205-339933?style=flat&logo=node.js)](https://nodejs.org)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas%20%2F%20Mongoose-47A248?style=flat&logo=mongodb)](https://www.mongodb.com)
 
-**Live Application:** [pulsebeat-eight.vercel.app](https://pulsebeat-eight.vercel.app)  
+**Live Application:** [pulsebeat-eight.vercel.app](https://pulsebeat-eight.vercel.app/?demo=guest) *(1-Click Instant Guest Demo)*  
 **API Endpoint:** [pulsebeat-api-fii6.onrender.com/api](https://pulsebeat-api-fii6.onrender.com/api)
 
 ---

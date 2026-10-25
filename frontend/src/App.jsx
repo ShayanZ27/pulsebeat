@@ -16,7 +16,8 @@ import { selectCurrentUser } from './store/authSlice';
 function RequireAuth() {
   const user = useSelector(selectCurrentUser);
   const location = useLocation();
-  return user ? <Outlet /> : <Navigate to="/login" replace state={{ from: location }} />;
+  const search = location.search || '';
+  return user ? <Outlet /> : <Navigate to={`/login${search}`} replace state={{ from: location }} />;
 }
 
 export default function App() {
